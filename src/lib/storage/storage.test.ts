@@ -3,6 +3,7 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { emptyJd } from "@/lib/jd/schema";
+import type { MatchReport } from "@/lib/match/types";
 import { emptyResume, resumeSchema } from "@/lib/resume/schema";
 import { createStorage } from "@/lib/storage";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
@@ -39,6 +40,25 @@ function jdRecord(overrides: Partial<JdRecord> = {}): JdRecord {
     structured: emptyJd(),
     createdAt: timestamp,
     updatedAt: timestamp,
+    ...overrides,
+  };
+}
+
+function reportRecord(overrides: Partial<MatchReport> = {}): MatchReport {
+  counter += 1;
+  return {
+    id: `report-${counter}`,
+    resumeId: "resume-1",
+    jdId: "jd-1",
+    rubricVersion: "1.0.0",
+    score: 62,
+    criteria: [],
+    atsChecks: [],
+    summary: null,
+    inputHash: `hash-${counter}`,
+    model: "openrouter/free",
+    aiMode: "mock",
+    createdAt: new Date(2026, 0, counter).toISOString(),
     ...overrides,
   };
 }
@@ -137,5 +157,55 @@ describe("storage", () => {
     expect(await storage.listResumes()).toEqual([]);
     await storage.putResume(record);
     expect((await storage.listResumes()).map((r) => r.id)).toEqual([record.id]);
+  });
+
+  it("round-trips a match report and finds it by input identity", async () => {
+    const report = reportRecord({ inputHash: "abc123" });
+    await storage.putReport(report);
+
+    expect(await storage.getReport(report.id)).toEqual(report);
+    expect((await storage.findReportByInputHash("abc123"))?.id).toBe(report.id);
+    expect(await storage.findReportByInputHash("different")).toBeNull();
+  });
+
+  it("returns the newest report when several share an input identity", async () => {
+    const older = reportRecord({ inputHash: "same", createdAt: new Date(2026, 0, 1).toISOString() });
+    const newer = reportRecord({ inputHash: "same", createdAt: new Date(2026, 5, 1).toISOString() });
+    await storage.putReport(older);
+    await storage.putReport(newer);
+
+    expect((await storage.findReportByInputHash("same"))?.id).toBe(newer.id);
+  });
+
+  it("preserves data written by the previous schema version when upgrading", async () => {
+    const name = `resync-upgrade-${Date.now()}`;
+    const record = resumeRecord();
+
+    // Open as version 1, which is what an existing user has on disk: no reports store.
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(name, 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore("resumes", { keyPath: "id" });
+        request.result.createObjectStore("jds", { keyPath: "id" });
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("resumes", "readwrite");
+        tx.objectStore("resumes").put(record);
+        tx.onerror = () => reject(tx.error);
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+      };
+    });
+
+    const upgraded = createStorage({ name });
+
+    expect((await upgraded.getResume(record.id))?.title).toBe(record.title);
+    expect(await upgraded.listReports()).toEqual([]);
+    await upgraded.putReport(reportRecord());
+    expect(await upgraded.listReports()).toHaveLength(1);
   });
 });

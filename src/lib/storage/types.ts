@@ -1,4 +1,5 @@
 import type { Jd } from "@/lib/jd/schema";
+import type { MatchReport } from "@/lib/match/types";
 import type { Resume } from "@/lib/resume/schema";
 
 /**
@@ -55,6 +56,13 @@ export interface StorageApi {
   getJd(id: string): Promise<JdRecord | null>;
   putJd(record: JdRecord): Promise<void>;
   deleteJd(id: string): Promise<void>;
+
+  listReports(): Promise<MatchReport[]>;
+  getReport(id: string): Promise<MatchReport | null>;
+  putReport(report: MatchReport): Promise<void>;
+  deleteReport(id: string): Promise<void>;
+  /** Most recent report for an input identity, which is how repeat analyses avoid a model call. */
+  findReportByInputHash(inputHash: string): Promise<MatchReport | null>;
 
   estimate(): Promise<StorageEstimate>;
   clearUserData(): Promise<void>;
