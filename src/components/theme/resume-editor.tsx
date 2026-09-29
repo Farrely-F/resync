@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CompilePanel } from "@/components/compile/compile-panel";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { deriveResumeTitle } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
@@ -177,6 +178,8 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
           <code>{report.tex}</code>
         </pre>
       </section>
+
+      <CompilePanel tex={report.tex} themeName={resolveTheme(record.themeId).name} title={title} />
     </div>
   );
 }
