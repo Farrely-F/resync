@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# TeX engine assets (fetched at build time, see issue #7)
+/public/core/busytex/
