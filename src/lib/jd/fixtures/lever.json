@@ -1,0 +1,15 @@
+[
+  {
+    "id": "681fbc53-1e34-4a46-8677-3a78118674eb",
+    "text": "Approved Professional 3",
+    "hostedUrl": "https://jobs.lever.co/leverdemo/681fbc53-1e34-4a46-8677-3a78118674eb",
+    "descriptionPlain": "Welcome to the Demo Job Listing for Lever! This is a fictional job created solely for demonstration purposes and is not an actual open position. We’ve crafted this listing to showcase the functionality of our ATS platform, including job descriptions, application processes, and more.\n\nWhile you can explore the application process and features here, please note that applications submitted to this job will not be reviewed or responded to as it’s for demonstration only. \n\n\nThis posting\n",
+    "categories": {
+      "location": "Baltimore, MD",
+      "team": "Operations",
+      "allLocations": [
+        "Baltimore, MD"
+      ]
+    }
+  }
+]
