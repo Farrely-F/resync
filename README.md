@@ -30,9 +30,9 @@ Useful scripts:
 
 ## How AI calls are wired
 
-Every structured model call goes through one seam (`src/lib/ai/run.ts`), which is either served from a recorded
-fixture under `AI_MODE=mock` or sent to OpenRouter under `AI_MODE=live`. Tests and local development never need
-network access or an API key.
+Every structured model call goes through one seam (`src/lib/ai/run.ts`), which is either served from a fixture the
+calling feature provides under `AI_MODE=mock` or sent to OpenRouter under `AI_MODE=live`. Tests and local
+development never need network access or an API key.
 
 Two consequences worth knowing before designing anything on top of it:
 

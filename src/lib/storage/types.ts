@@ -39,6 +39,8 @@ export interface JdRecord {
 }
 
 export interface StorageEstimate {
+  /** False when the browser exposes no quota API; sizes are then unknown, not zero. */
+  supported: boolean;
   usageBytes: number;
   quotaBytes: number | null;
 }

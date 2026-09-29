@@ -1,14 +1,14 @@
 import { Output, generateText, type LanguageModel } from "ai";
 import type { z } from "zod";
 
-import { mockFixtures } from "@/lib/ai/fixtures";
 import { createLiveModel } from "@/lib/ai/provider";
 import { getEnv, type AppEnv } from "@/lib/env";
 
 /**
- * Every structured AI call in the app goes through this seam. Recorded fixtures
- * live in `fixtures.ts`; a task with no fixture fails loudly in mock mode rather
- * than quietly returning something made up.
+ * Every structured AI call in the app goes through this seam. In mock mode the
+ * caller supplies the recorded fixture for its own task, so each feature owns
+ * its own recording instead of sharing one registry; a task with no fixture
+ * fails loudly rather than quietly returning something made up.
  */
 export const aiTasks = ["parse-resume", "extract-jd", "analyze-match", "verify-suggestions"] as const;
 
@@ -19,7 +19,7 @@ export class MissingFixtureError extends Error {
 
   constructor(task: AiTask) {
     super(
-      `AI_MODE=mock has no recorded fixture for task "${task}". Add one to src/lib/ai/fixtures.ts, or run with AI_MODE=live.`,
+      `AI_MODE=mock has no recorded fixture for task "${task}". Pass one in \`fixtures\`, or run with AI_MODE=live.`,
     );
     this.name = "MissingFixtureError";
     this.task = task;
@@ -33,6 +33,7 @@ export interface RunStructuredOptions<T> {
   prompt: string;
   /** Overridden by tests and by callers that resolved the environment already. */
   env?: AppEnv;
+  /** Required in mock mode: the recording for this task. */
   fixtures?: Partial<Record<AiTask, unknown>>;
   /** Injected by tests to exercise the live branch without a network call. */
   model?: LanguageModel;
@@ -42,8 +43,7 @@ export async function runStructured<T>(options: RunStructuredOptions<T>): Promis
   const env = options.env ?? getEnv();
 
   if (env.aiMode === "mock") {
-    const fixtures = options.fixtures ?? mockFixtures;
-    const fixture = fixtures[options.task];
+    const fixture = options.fixtures?.[options.task];
     if (fixture === undefined) {
       throw new MissingFixtureError(options.task);
     }
