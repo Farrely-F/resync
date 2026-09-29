@@ -9,7 +9,10 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "fetch:tex": "node scripts/fetch-tex-assets.mjs",
+    "fetch:tex:force": "node scripts/fetch-tex-assets.mjs --force",
+    "verify:tex-assets": "node scripts/fetch-tex-assets.mjs --check"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
