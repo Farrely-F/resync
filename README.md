@@ -47,6 +47,15 @@ Two consequences worth knowing before designing anything on top of it:
 - **Canonical data model**: JSON Resume (basics, work with bullets, education, skills, projects, certificates,
   languages). LaTeX is a rendering target, not the source of truth. Editing generated LaTeX marks that resume as
   *manual*, which stops it being rewritten from data until the user explicitly regenerates it.
+- **Match reports**: the model answers per-criterion questions about the resume against the posting — met, partly
+  met, missing, with the supporting resume text — and never a score. `src/lib/match/rubric.ts` turns those verdicts
+  into the percentage from weights that live in one place, so the same evidence always gives the same number and the
+  report can show the arithmetic. ATS format checks are derived from the generated document and the resume structure,
+  not from the model.
+- **Report cache and quota**: a report is identified by the hash of its inputs (resume, posting, theme, rubric
+  version, model, AI mode). Re-analysing an identical pair returns the stored report and makes no model request. The
+  quota line on `/match` is a count of model requests this browser started today, kept in `localStorage`; it is not a
+  provider-reported balance, so no remaining-quota number is shown.
 - **PDF output**: real LaTeX compiled in the browser, off the main thread, from engine assets (~127 MB) fetched at
   build time and cached in Cache Storage. Nothing downloads without explicit consent.
 - **Themes** may only use packages present in the bundled minimal TeX Live scheme, enforced by a compile check.
