@@ -106,6 +106,16 @@ npm run dev | jq -c 'select(.level == "error" or .event == "route.parse-resume.f
 
 ## Architecture notes
 
+- **Two schemas per AI task, and the reason is strict structured output.** Groq and OpenAI reject any schema whose
+  object properties are not all listed in `required`, and a Zod `.default(...)` or `.optional()` produces exactly that
+  — the rejection arrives as a provider error naming a path inside the generated JSON schema, which is how
+  `/api/parse-resume` shipped broken. So the schemas the model is asked for (`resume/model-schema.ts`,
+  `jd/model-schema.ts`, and the wire schemas in `match/analyze.ts` and `suggestions/`) require every property, use
+  `nullable` where a value may be absent, and carry no defaults; the app's own schemas next door keep their defaults,
+  because stored records and partial input are read with them. `ai/strict-schema.test.ts` converts every model schema
+  with the SDK's own helper and fails if a property is not required, if `additionalProperties` is not false, or if a
+  model schema and its app schema drift apart. The model is never asked for `sections`: that is this app's
+  presentation configuration, and `parseResume` adds it.
 - **Canonical data model**: JSON Resume (basics, work with bullets, education, skills, projects, certificates,
   languages). LaTeX is a rendering target, not the source of truth. Editing generated LaTeX marks that resume as
   *manual*, which stops it being rewritten from data until the user explicitly regenerates it.

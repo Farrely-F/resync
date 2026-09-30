@@ -4,6 +4,7 @@ import { z } from "zod";
 import { runStructured, type AiTask } from "@/lib/ai/run";
 import type { AppEnv } from "@/lib/env";
 import { extractJdFixture } from "@/lib/jd/fixtures/extract-jd";
+import { jdContentSchema } from "@/lib/jd/model-schema";
 import { jdSchema, type Jd } from "@/lib/jd/schema";
 import type { JobHints } from "@/lib/jd/hosts";
 
@@ -46,15 +47,19 @@ export function buildJdPrompt(input: StructureJdInput): string {
 }
 
 export async function structureJd(input: StructureJdInput): Promise<Jd> {
-  return runStructured({
+  const content = await runStructured({
     task: "extract-jd",
-    schema: jdSchema,
+    schema: jdContentSchema,
     instructions: extractJdInstructions,
     prompt: buildJdPrompt(input),
     env: input.env,
     fixtures: input.fixtures ?? { "extract-jd": extractJdFixture },
     model: input.model,
   });
+
+  // The model answers with content; the app's own schema is what the rest of the
+  // app reads, so the two are joined here rather than assumed to be identical.
+  return jdSchema.parse(content);
 }
 
 /**

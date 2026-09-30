@@ -1,15 +1,19 @@
 import { runStructured } from "@/lib/ai/run";
 import { parseResumeFixture } from "@/lib/resume/fixtures";
-import { resumeSchema, type Resume } from "@/lib/resume/schema";
+import { resumeContentSchema } from "@/lib/resume/model-schema";
+import { defaultSections, type Resume } from "@/lib/resume/schema";
 
 /**
  * Resume structuring.
  *
- * The model receives extracted plain text only — never the uploaded file — and
- * returns the canonical model from `src/lib/resume/schema.ts`. Invalid output is
- * rejected by the schema itself: `runStructured` parses the model response with
- * `resumeSchema`, so a malformed response throws instead of being coerced into a
+ * The model receives extracted plain text only — never the uploaded file — and is
+ * asked for the content of a resume with `resumeContentSchema`, which is authored
+ * for the provider's strict structured output mode. Invalid output is rejected by
+ * that schema, so a malformed response throws instead of being coerced into a
  * half-shaped resume.
+ *
+ * What comes back is content, not a stored resume: `sections` is this app's
+ * presentation configuration, so it is added here rather than asked of the model.
  */
 export const parseResumeInstructions = [
   "You convert the plain text of a resume into a structured JSON resume.",
@@ -34,12 +38,14 @@ export function buildParseResumePrompt(text: string): string {
  * refused it.
  */
 export async function parseResume(text: string, requestId?: string): Promise<Resume> {
-  return runStructured({
+  const content = await runStructured({
     task: "parse-resume",
-    schema: resumeSchema,
+    schema: resumeContentSchema,
     instructions: parseResumeInstructions,
     prompt: buildParseResumePrompt(text),
     fixtures: { "parse-resume": parseResumeFixture },
     requestId,
   });
+
+  return { ...content, sections: defaultSections };
 }

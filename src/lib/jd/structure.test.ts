@@ -45,16 +45,41 @@ describe("structureJd", () => {
   });
 
   it("returns validated model output in live mode", async () => {
+    // The schema the model is asked for is strict, so a response without the
+    // optional-looking keys is not a valid one: the model says `null` or `[]`
+    // rather than omitting a property.
     const jd = await structureJd({
       ...baseInput,
       env: liveEnv,
-      model: modelReturning({ title: "Senior Go Engineer", company: "Acme", requirements: ["Go", "Postgres"] }),
+      model: modelReturning({
+        title: "Senior Go Engineer",
+        company: "Acme",
+        seniority: null,
+        location: null,
+        requirements: ["Go", "Postgres"],
+        niceToHave: [],
+        skills: [],
+        responsibilities: [],
+        keywords: [],
+      }),
     });
 
     expect(jd.title).toBe("Senior Go Engineer");
     expect(jd.company).toBe("Acme");
     expect(jd.requirements).toEqual(["Go", "Postgres"]);
     expect(jd.niceToHave).toEqual([]);
+  });
+
+  it("rejects a response that leaves out a required property", async () => {
+    // The failure mode that started this: a schema whose properties are not all
+    // required is rejected by a strict provider before the model even runs.
+    await expect(
+      structureJd({
+        ...baseInput,
+        env: liveEnv,
+        model: modelReturning({ title: "Senior Go Engineer", company: "Acme", requirements: ["Go"] }),
+      }),
+    ).rejects.toSatisfy(isInvalidModelOutputError);
   });
 
   it("rejects malformed model output in live mode", async () => {

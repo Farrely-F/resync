@@ -32,12 +32,17 @@ export const criterionEvidenceSchema = z.object({
       kind: z.enum(criterionKinds),
       requirement: z.string().min(1),
       verdict: z.enum(verdicts),
-      /** A quote or close paraphrase from the resume; null when nothing supports the verdict. */
-      evidence: z.string().nullable().default(null),
+      /**
+       * A quote or close paraphrase from the resume; null when nothing supports
+       * the verdict. `nullable` rather than defaulted: a default makes the
+       * property optional, and a strict provider rejects a schema whose
+       * properties are not all required.
+       */
+      evidence: z.string().nullable(),
     }),
   ),
   /** Optional prose. Presented as commentary, never as the score. */
-  summary: z.string().nullable().default(null),
+  summary: z.string().nullable(),
 });
 
 export type CriterionEvidence = z.infer<typeof criterionEvidenceSchema>;

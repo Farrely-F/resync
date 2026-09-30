@@ -1,13 +1,17 @@
-import { defaultSections, resumeSchema, type Resume } from "@/lib/resume/schema";
+import { resumeContentSchema, type ResumeContent } from "@/lib/resume/model-schema";
+import { defaultSections, type Resume } from "@/lib/resume/schema";
 
 /**
  * Recorded fixture for `AI_MODE=mock`.
  *
  * Mock mode is the dev default and must run with zero network calls, so the
  * `parse-resume` task owns this recording. It is a plausible structuring of
- * `parseResumeFixtureSourceText` below — maintain the two together, because
- * the fixture is validated against `resumeSchema` on the way out and a drifted
- * recording fails loudly rather than silently mis-parsing.
+ * `parseResumeFixtureSourceText` below — maintain the two together, because the
+ * fixture is validated against the schema the model is asked for on the way out,
+ * and a drifted recording fails loudly rather than silently mis-parsing.
+ *
+ * It is content, not a stored resume: no `sections`, because the model is not
+ * asked about them. `parseResumeFixture` is what the app makes of it.
  */
 export const parseResumeFixtureSourceText = `Priya Raman
 Senior Backend Engineer
@@ -46,7 +50,7 @@ AWS Certified Solutions Architect - Professional, Amazon Web Services, 2022
 LANGUAGES
 English (Native), Tamil (Conversational), German (Intermediate)`;
 
-export const parseResumeFixture: Resume = resumeSchema.parse({
+export const parseResumeContentFixture: ResumeContent = resumeContentSchema.parse({
   basics: {
     name: "Priya Raman",
     label: "Senior Backend Engineer",
@@ -124,5 +128,10 @@ export const parseResumeFixture: Resume = resumeSchema.parse({
     { language: "Tamil", fluency: "Conversational" },
     { language: "German", fluency: "Intermediate" },
   ],
-  sections: defaultSections,
 });
+
+/**
+ * What `parseResume` returns: the recorded content plus the section
+ * configuration, which the app adds because the model is never asked for it.
+ */
+export const parseResumeFixture: Resume = { ...parseResumeContentFixture, sections: defaultSections };

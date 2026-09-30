@@ -40,7 +40,7 @@ export const suggestionVerificationSchema = z.object({
       grounded: z.boolean(),
       reason: z.string().min(1),
       /** The claims the resume does not support; empty when grounded. */
-      unsupported: z.array(z.string()).default([]),
+      unsupported: z.array(z.string()),
     }),
   ),
 });
