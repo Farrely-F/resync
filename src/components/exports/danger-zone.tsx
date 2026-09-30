@@ -74,7 +74,7 @@ function RecordItem({
   onConfirm: () => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
+    <li className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col">
           <span className="text-sm font-medium break-words">{label}</span>

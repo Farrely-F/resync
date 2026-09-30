@@ -129,7 +129,7 @@ export function SectionsEditor({ resume, onChange }: { resume: Resume; onChange:
                   <ul className="flex flex-col gap-3">
                     {entries.map((entry, index) => (
                       <SortableItem
-                        className="rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3"
+                        className="rounded-xl bg-background ring-1 ring-foreground/[0.08] p-3"
                         handleLabel={`entry ${index + 1} of the ${label} section`}
                         id={String(index)}
                         key={index}

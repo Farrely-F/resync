@@ -272,7 +272,7 @@ export function PreviewPanel({
                 <summary className="cursor-pointer py-1">
                   Engine output ({phase.log.split("\n").length} lines)
                 </summary>
-                <pre className="mt-2 max-h-80 min-w-0 overflow-auto rounded border border-border/60 bg-muted p-2 leading-relaxed">
+                <pre className="mt-2 max-h-80 min-w-0 overflow-auto rounded-xl bg-background ring-1 ring-foreground/[0.08] p-3 leading-relaxed">
                   <code>{phase.log || "(the engine printed nothing)"}</code>
                 </pre>
               </details>
@@ -300,7 +300,7 @@ export function PreviewPanel({
                 : null}
             </p>
             <iframe
-              className="h-80 w-full rounded-md border border-border/60 bg-white sm:h-[28rem] lg:h-[36rem]"
+              className="h-80 w-full rounded-xl bg-white ring-1 ring-foreground/[0.08] shadow-(--shadow-rest) sm:h-[28rem] lg:h-[36rem]"
               src={lastPdf.url}
               title={`Compiled PDF: ${title}`}
             />
@@ -328,7 +328,7 @@ export function PreviewPanel({
       ) : null}
 
       <div className="mt-3">
-        <EngineCacheCard onCleared={engine.refreshGate} refreshToken={engine.cacheToken} />
+        <EngineCacheCard nested onCleared={engine.refreshGate} refreshToken={engine.cacheToken} />
       </div>
     </CollapsibleSection>
   );

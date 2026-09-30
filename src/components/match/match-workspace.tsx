@@ -81,7 +81,7 @@ function DeleteJdConfirm({ title, busy, onCancel, onConfirm }: {
   onConfirm: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+    <div className="flex flex-col gap-3 rounded-xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-3">
       <p className="text-sm">
         Delete <span className="font-medium">{title}</span>? Its structured data and saved text are removed from this
         browser, and this cannot be undone.

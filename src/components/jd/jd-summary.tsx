@@ -53,7 +53,7 @@ export function JdSummary({ structured, source, url, rawText, hints, stored }: J
       <header className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{deriveJdTitle(structured, hints.title ?? "Untitled job")}</h2>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span className="rounded-md bg-muted px-2 py-0.5">{sourceLabels[source] ?? source}</span>
+          <span className="rounded-full bg-secondary px-2.5 py-0.5">{sourceLabels[source] ?? source}</span>
           {facts.map((fact) => (
             <span key={fact}>{fact}</span>
           ))}
@@ -79,7 +79,7 @@ export function JdSummary({ structured, source, url, rawText, hints, stored }: J
 
       <details className="text-sm">
         <summary className="cursor-pointer text-muted-foreground">Source text ({rawText.length.toLocaleString()} characters)</summary>
-        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-3 text-xs leading-relaxed">
+        <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-background ring-1 ring-foreground/[0.08] p-3 text-xs leading-relaxed">
           {rawText}
         </pre>
       </details>

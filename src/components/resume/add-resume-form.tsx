@@ -83,7 +83,7 @@ export function AddResumeForm({ onAdded }: { onAdded: (record: ResumeRecord) => 
         <Label htmlFor="resume-file">Choose a file</Label>
         <input
           accept=".pdf,.docx,.txt,.md,.markdown,application/pdf,text/plain,text/markdown"
-          className="block w-full cursor-pointer rounded-md border border-input bg-background p-3 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium"
+          className="block w-full cursor-pointer rounded-xl border border-input bg-card/70 shadow-[inset_0_1px_2px_oklch(0.2_0.03_265/0.05)] p-2 text-sm transition-colors hover:border-foreground/25 file:mr-3 file:rounded-full file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-medium"
           disabled={busy}
           id="resume-file"
           onChange={(event) => {

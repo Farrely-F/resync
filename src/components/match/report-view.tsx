@@ -39,10 +39,10 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
   const { criterion, weight, credit, earned, counted } = row;
 
   return (
-    <li className="flex flex-col gap-2 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
+    <li className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
       <p className="text-sm font-medium">{criterion.requirement}</p>
       <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="rounded-md bg-muted px-2 py-0.5 text-foreground">{kindLabels[criterion.kind]}</span>
+        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-foreground">{kindLabels[criterion.kind]}</span>
         <span className={criterion.verdict === "missing" ? "text-destructive" : "text-foreground"}>
           {verdictLabels[criterion.verdict]}
         </span>
@@ -52,7 +52,7 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
         {!counted ? <span>left out of the total: an unmet optional item is not a penalty</span> : null}
       </p>
       {criterion.evidence ? (
-        <blockquote className="border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
+        <blockquote className="rounded-lg bg-background px-3 py-2 ring-1 ring-foreground/[0.06] text-xs leading-relaxed text-muted-foreground">
           {criterion.evidence}
         </blockquote>
       ) : null}
@@ -62,7 +62,7 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
 
 function CheckRow({ check }: { check: MatchReport["atsChecks"][number] }) {
   return (
-    <li className="flex flex-col gap-1 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
+    <li className="flex flex-col gap-1 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
       <p className="flex items-center gap-2 text-sm font-medium">
         <span
           aria-hidden
@@ -156,7 +156,7 @@ export function ReportView({ id }: { id: string }) {
           model.
         </p>
         {drifted ? (
-          <p className="rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3 text-xs leading-relaxed text-muted-foreground">
+          <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-xs leading-relaxed text-muted-foreground">
             This report was saved under rubric v{report.rubricVersion} with a score of {formatScore(report.score)}%. The
             weights have changed since, so re-scoring the stored criteria now gives {formatScore(rubric.score)}%. The
             evidence is unchanged.
@@ -167,7 +167,7 @@ export function ReportView({ id }: { id: string }) {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">The inputs</h2>
         {resume === null || jd === null ? (
-          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card/60 p-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card p-3 text-sm leading-relaxed text-muted-foreground">
             The inputs are gone: the{" "}
             {[resume === null ? "resume" : null, jd === null ? "job description" : null]
               .filter((part): part is string => part !== null)
@@ -234,7 +234,7 @@ export function ReportView({ id }: { id: string }) {
         {report.summary === null ? (
           <p className="text-sm text-muted-foreground">The model returned no commentary for this analysis.</p>
         ) : (
-          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card/60 p-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card p-3 text-sm leading-relaxed text-muted-foreground">
             {report.summary}
           </p>
         )}
