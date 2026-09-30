@@ -2,7 +2,7 @@ import { TriangleAlert } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import type { AiModeSummary } from "@/lib/env";
+import { aiProviders, providerDefaults, type AiModeSummary } from "@/lib/env";
 
 /**
  * Discloses that the app is answering from recorded fixtures rather than from
@@ -10,14 +10,14 @@ import type { AiModeSummary } from "@/lib/env";
  *
  * This exists because the failure it prevents is silent and badly misleading: in
  * mock mode the resume you upload and the posting you paste are replaced by
- * stored samples, so a fixture reads exactly like a successful parse. Anything
- * that renders model output sits under this notice, and it is phrased as what is
- * wrong rather than as a setting.
+ * stored samples, so a fixture reads exactly like a successful parse.
  */
 export function MockModeNotice({ summary }: { summary: AiModeSummary }) {
   if (summary.aiMode !== "mock") {
     return null;
   }
+
+  const keyVariables = aiProviders.map((provider) => providerDefaults[provider].keyVariable).join(" or ");
 
   return (
     <Alert className="rounded-none border-x-0 border-t-0 border-amber-500/40 bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
@@ -34,14 +34,15 @@ export function MockModeNotice({ summary }: { summary: AiModeSummary }) {
           </>
         ) : (
           <>
-            No <code>OPENROUTER_API_KEY</code> is configured, so every parse, match and suggestion is answered from a
-            fixture that ships with the app.
+            No provider key is configured, so every parse, match and suggestion is answered from a fixture that ships
+            with the app.
           </>
         )}{" "}
-        To use your own documents, put <code>OPENROUTER_API_KEY=…</code> in <code>.env.local</code> and either remove{" "}
-        <code>AI_MODE</code> or set it to <code>live</code>. The app then calls{" "}
-        <code>{summary.model || "openrouter/free"}</code>, whose free allowance is shared per key (20 requests/minute,
-        50/day below $10 of credits).
+        To use your own documents, put <code>{keyVariables}</code> in <code>.env.local</code> and either remove{" "}
+        <code>AI_MODE</code> or set it to <code>live</code>. Set <code>AI_PROVIDER</code> to choose between{" "}
+        {aiProviders.map((provider) => providerDefaults[provider].label).join(" and ")} and <code>MODEL_ID</code> to
+        choose a model; with both keys configured, the other provider is used automatically when the first one cannot
+        route the request or its allowance is spent.
         {!summary.valid ? (
           <>
             {" "}

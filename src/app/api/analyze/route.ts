@@ -69,7 +69,7 @@ function errorResponse(status: number, reason: string, message: string, extra: R
 
 export async function GET() {
   const env = getEnv();
-  return NextResponse.json({ aiMode: env.aiMode, model: env.model });
+  return NextResponse.json({ aiMode: env.aiMode, provider: env.provider, model: env.model });
 }
 
 export async function POST(request: Request) {

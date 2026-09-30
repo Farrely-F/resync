@@ -1,47 +1,74 @@
 /**
  * Server-side environment contract.
  *
- * AI_MODE=mock serves every AI call from a recorded fixture: no network, no API
- * key, fully deterministic. AI_MODE=live calls OpenRouter with the server-side
- * key.
+ * Provider and model are named separately so nothing is tied to one vendor:
+ * `AI_PROVIDER` selects where calls go and `MODEL_ID` selects which model,
+ * rather than both being encoded in one vendor-shaped variable.
  *
  * Mode precedence, in order:
  *   1. an explicit AI_MODE, which always wins;
- *   2. a present OPENROUTER_API_KEY means live — a configured key is an
- *      unambiguous request to use it, and silently substituting fixtures for a
- *      user's own documents is the worst possible default;
- *   3. production without a key is live, which fails loudly at startup;
+ *   2. otherwise any configured API key means live — a key is an unambiguous
+ *      request to use it, and silently substituting fixtures for a user's own
+ *      documents is the worst possible default;
+ *   3. otherwise production means live, which fails loudly without a key;
  *   4. otherwise mock, so a fresh clone runs with no setup at all.
  */
 export const aiModes = ["mock", "live"] as const;
 
 export type AiMode = (typeof aiModes)[number];
 
-/** Free auto-router; see the quota notes in `.env.example`. */
-export const defaultModel = "openrouter/free";
+export const aiProviders = ["openrouter", "groq"] as const;
 
-/**
- * Models tried in order when the provider answers 503 "no available model
- * provider meets your routing requirements" — that answer means routing failed,
- * not that the request was wrong, so the same request is sent to a named model
- * instead of the router.
- *
- * The provider listed these as free, and as supporting the structured output
- * every call in this app asks for, on 2026-09-30. Free model availability
- * changes, so they are a default and not a guarantee: `OPENROUTER_FALLBACK_MODELS`
- * replaces the list, and listing only the configured model leaves none.
- */
-export const defaultFallbackModels = [
-  "qwen/qwen3.8-27b:free",
-  "nvidia/nemotron-3-super-120b-a12b:free",
-  "dots-studio/dots-3-note-preview:free",
-] as const;
+export type AiProvider = (typeof aiProviders)[number];
+
+export interface ProviderDefaults {
+  label: string;
+  keyVariable: string;
+  model: string;
+  /**
+   * Models tried in order when this provider cannot route the primary model.
+   * Listed by the provider as free and as supporting the structured output every
+   * call here asks for, as of 2026-09-30 — free availability drifts, so this is a
+   * default and not a promise. `FALLBACK_MODEL_IDS` replaces it entirely.
+   */
+  fallbacks: readonly string[];
+}
+
+export const providerDefaults: Record<AiProvider, ProviderDefaults> = {
+  openrouter: {
+    label: "OpenRouter",
+    keyVariable: "OPENROUTER_API_KEY",
+    model: "openrouter/free",
+    fallbacks: ["qwen/qwen3.8-27b:free", "nvidia/nemotron-3-super-120b-a12b:free", "dots-studio/dots-3-note-preview:free"],
+  },
+  groq: {
+    label: "Groq",
+    keyVariable: "GROQ_API_KEY",
+    model: "llama-3.3-70b-versatile",
+    fallbacks: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b"],
+  },
+};
+
+/** A provider plus the model to ask it for. */
+export interface ModelTarget {
+  provider: AiProvider;
+  modelId: string;
+}
 
 export interface AppEnv {
   aiMode: AiMode;
+  /** Primary provider. */
+  provider: AiProvider;
+  /** Primary model id: `MODEL_ID`, or the provider's default. */
   model: string;
-  fallbackModels: readonly string[];
-  apiKey: string | null;
+  /**
+   * Ordered targets tried after the primary. These may name a different
+   * provider, which is the point: when one vendor's free allowance is spent, the
+   * next target is a different vendor rather than the same exhausted key.
+   */
+  fallbacks: readonly ModelTarget[];
+  /** Configured keys by provider. A provider without a key cannot be called. */
+  apiKeys: Partial<Record<AiProvider, string>>;
 }
 
 export class EnvError extends Error {
@@ -60,12 +87,44 @@ function nonEmpty(value: string | undefined): string | undefined {
 }
 
 /**
- * A comma-separated model list. A missing, blank or comma-only value counts as
- * absent, exactly as a blank model or key does, and falls back to the default.
+ * A comma-separated list. A missing, blank or comma-only value counts as absent,
+ * exactly as a blank model or key does. An explicitly empty list is different
+ * from an absent one only for fallbacks, where it means "nothing to fall back to".
  */
-function modelList(value: string | undefined): readonly string[] | undefined {
+function itemList(value: string | undefined): readonly string[] | undefined {
   const entries = value?.split(",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
   return entries === undefined || entries.length === 0 ? undefined : entries;
+}
+
+function isProvider(value: string): value is AiProvider {
+  return (aiProviders as readonly string[]).includes(value);
+}
+
+/**
+ * A fallback entry is either `provider@model` or a bare `model` that belongs to
+ * the primary provider.
+ *
+ * `@` rather than `:` or `/`: OpenRouter model ids end in variants like `:free`
+ * and vendor-prefixed ids contain `/`, so both separators would be ambiguous.
+ * `@` appears in neither.
+ */
+function parseTarget(entry: string, primary: AiProvider): ModelTarget | string {
+  const separator = entry.indexOf("@");
+  if (separator === -1) {
+    return { provider: primary, modelId: entry };
+  }
+
+  const provider = entry.slice(0, separator).trim();
+  const modelId = entry.slice(separator + 1).trim();
+
+  if (!isProvider(provider)) {
+    return `FALLBACK_MODEL_IDS entry ${JSON.stringify(entry)} names an unknown provider ${JSON.stringify(provider)} before "@"; expected one of ${aiProviders.join(", ")} or a bare model id`;
+  }
+  if (modelId.length === 0) {
+    return `FALLBACK_MODEL_IDS entry ${JSON.stringify(entry)} has no model id after "@"`;
+  }
+
+  return { provider, modelId };
 }
 
 export function parseEnv(
@@ -74,9 +133,64 @@ export function parseEnv(
 ): AppEnv {
   const issues: string[] = [];
 
-  const model = nonEmpty(raw.OPENROUTER_MODEL) ?? defaultModel;
-  const fallbackModels = modelList(raw.OPENROUTER_FALLBACK_MODELS) ?? defaultFallbackModels;
-  const apiKey = nonEmpty(raw.OPENROUTER_API_KEY) ?? null;
+  const apiKeys: Partial<Record<AiProvider, string>> = {};
+  for (const provider of aiProviders) {
+    const key = nonEmpty(raw[providerDefaults[provider].keyVariable]);
+    if (key !== undefined) {
+      apiKeys[provider] = key;
+    }
+  }
+
+  const configured = aiProviders.filter((provider) => apiKeys[provider] !== undefined);
+
+  const rawProvider = nonEmpty(raw.AI_PROVIDER);
+  let provider: AiProvider;
+  if (rawProvider !== undefined) {
+    if (isProvider(rawProvider)) {
+      provider = rawProvider;
+    } else {
+      issues.push(`AI_PROVIDER must be one of ${aiProviders.join(", ")} (received ${JSON.stringify(rawProvider)})`);
+      provider = "openrouter";
+    }
+  } else if (configured.length === 1) {
+    // One key present is a clear statement of which provider to use.
+    provider = configured[0];
+  } else {
+    // None, or several: OpenRouter is the default, and the other provider's key
+    // still contributes a cross-provider fallback below.
+    provider = "openrouter";
+  }
+
+  const model = nonEmpty(raw.MODEL_ID) ?? providerDefaults[provider].model;
+
+  const rawFallbacks = nonEmpty(raw.FALLBACK_MODEL_IDS);
+  const explicitFallbacks = itemList(raw.FALLBACK_MODEL_IDS);
+  let fallbacks: ModelTarget[] = [];
+
+  if (explicitFallbacks !== undefined) {
+    for (const entry of explicitFallbacks) {
+      const parsed = parseTarget(entry, provider);
+      if (typeof parsed === "string") {
+        issues.push(parsed);
+      } else if (!(parsed.provider === provider && parsed.modelId === model)) {
+        fallbacks.push(parsed);
+      }
+    }
+  } else {
+    fallbacks = providerDefaults[provider].fallbacks
+      .filter((modelId) => modelId !== model)
+      .map((modelId) => ({ provider, modelId }));
+
+    // A key for another provider buys real resilience: when this vendor's free
+    // allowance is spent, the next attempt goes to a different vendor. Implicit
+    // only for the default list — an explicit FALLBACK_MODEL_IDS is obeyed as written.
+    for (const other of configured) {
+      if (other === provider) {
+        continue;
+      }
+      fallbacks.push({ provider: other, modelId: providerDefaults[other].model });
+    }
+  }
 
   const rawMode = nonEmpty(raw.AI_MODE);
   let aiMode: AiMode;
@@ -87,16 +201,16 @@ export function parseEnv(
       issues.push(`AI_MODE must be one of ${aiModes.join(", ")} (received ${JSON.stringify(rawMode)})`);
       aiMode = "mock";
     }
-  } else if (apiKey !== null || nodeEnv === "production") {
-    // A key means the operator wants real calls; fixtures are never a silent substitute.
+  } else if (configured.length > 0 || nodeEnv === "production") {
     aiMode = "live";
   } else {
     aiMode = "mock";
   }
 
-  if (aiMode === "live" && apiKey === null) {
+  if (aiMode === "live" && apiKeys[provider] === undefined) {
     issues.push(
-      "OPENROUTER_API_KEY is required when AI_MODE=live (set AI_MODE=mock to run against recorded fixtures)",
+      `AI_PROVIDER=${provider} needs ${providerDefaults[provider].keyVariable}; set it in .env.local, choose another provider, or set AI_MODE=mock to run against recorded fixtures` +
+        (rawFallbacks === undefined ? "" : ` (${rawFallbacks} does not help: a fallback needs its own provider's key)`),
     );
   }
 
@@ -104,7 +218,7 @@ export function parseEnv(
     throw new EnvError(issues);
   }
 
-  return { aiMode, model, fallbackModels, apiKey };
+  return { aiMode, provider, model, fallbacks, apiKeys };
 }
 
 let cached: AppEnv | undefined;
@@ -116,10 +230,14 @@ export function getEnv(): AppEnv {
 
 export interface AiModeSummary {
   aiMode: AiMode;
+  provider: AiProvider;
   model: string;
   /** True when AI_MODE was set explicitly rather than inferred from a key. */
   explicit: boolean;
+  /** True when the selected provider has a usable key. */
   hasApiKey: boolean;
+  /** Providers with a configured key, for the notice to report. */
+  providersWithKeys: readonly AiProvider[];
   /** False when the configuration is invalid; callers should say so rather than guess. */
   valid: boolean;
 }
@@ -134,12 +252,30 @@ export function summariseAiMode(
   nodeEnv: string | undefined = process.env.NODE_ENV,
 ): AiModeSummary {
   const explicit = nonEmpty(raw.AI_MODE) !== undefined;
-  const hasApiKey = nonEmpty(raw.OPENROUTER_API_KEY) !== undefined;
+  const providersWithKeys = aiProviders.filter(
+    (provider) => nonEmpty(raw[providerDefaults[provider].keyVariable]) !== undefined,
+  );
 
   try {
     const env = parseEnv(raw, nodeEnv);
-    return { aiMode: env.aiMode, model: env.model, explicit, hasApiKey, valid: true };
+    return {
+      aiMode: env.aiMode,
+      provider: env.provider,
+      model: env.model,
+      explicit,
+      hasApiKey: env.apiKeys[env.provider] !== undefined,
+      providersWithKeys,
+      valid: true,
+    };
   } catch {
-    return { aiMode: "mock", model: defaultModel, explicit, hasApiKey, valid: false };
+    return {
+      aiMode: "mock",
+      provider: "openrouter",
+      model: providerDefaults.openrouter.model,
+      explicit,
+      hasApiKey: false,
+      providersWithKeys,
+      valid: false,
+    };
   }
 }

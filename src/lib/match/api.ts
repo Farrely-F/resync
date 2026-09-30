@@ -1,5 +1,5 @@
 import { AiFailureError, isAiFailureKind } from "@/lib/ai/failures";
-import type { AiMode } from "@/lib/env";
+import { aiProviders, type AiMode, type AiProvider } from "@/lib/env";
 import type { Jd } from "@/lib/jd/schema";
 import type { MatchCriterion } from "@/lib/match/types";
 import type { Resume } from "@/lib/resume/schema";
@@ -49,6 +49,7 @@ export type AnalyzeResponse = AnalyzeSuccess | AnalyzeFailure;
 
 export interface ModelIdentity {
   aiMode: AiMode;
+  provider: AiProvider;
   model: string;
 }
 
@@ -100,11 +101,18 @@ export async function fetchModelIdentity(): Promise<ModelIdentity> {
   }
 
   const identity = body as Partial<ModelIdentity> | null;
-  if (!identity || (identity.aiMode !== "mock" && identity.aiMode !== "live") || typeof identity.model !== "string") {
+  const provider = identity?.provider;
+  if (
+    !identity ||
+    (identity.aiMode !== "mock" && identity.aiMode !== "live") ||
+    typeof identity.model !== "string" ||
+    typeof provider !== "string" ||
+    !(aiProviders as readonly string[]).includes(provider)
+  ) {
     throw new Error("The analyze route returned an unexpected identity.");
   }
 
-  return { aiMode: identity.aiMode, model: identity.model };
+  return { aiMode: identity.aiMode, provider: provider as AiProvider, model: identity.model };
 }
 
 export async function requestEvidence(input: AnalyzeRequestBody): Promise<AnalyzeSuccess> {

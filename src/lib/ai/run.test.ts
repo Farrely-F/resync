@@ -8,13 +8,29 @@ import { AiFailureError } from "@/lib/ai/failures";
 import { MissingFixtureError, runStructured } from "@/lib/ai/run";
 import type { AppEnv } from "@/lib/env";
 
-const mockEnv: AppEnv = { aiMode: "mock", model: "openrouter/free", fallbackModels: [], apiKey: null };
-const liveEnv: AppEnv = { aiMode: "live", model: "openrouter/free", fallbackModels: [], apiKey: "sk-test" };
+const mockEnv: AppEnv = { aiMode: "mock", provider: "openrouter", model: "openrouter/free", fallbacks: [], apiKeys: {} };
+const liveEnv: AppEnv = { aiMode: "live", provider: "openrouter", model: "openrouter/free", fallbacks: [], apiKeys: { openrouter: "sk-test" } };
 const fallbackEnv: AppEnv = {
   aiMode: "live",
+  provider: "openrouter",
   model: "primary/model",
-  fallbackModels: ["fallback/one", "fallback/two"],
-  apiKey: "sk-test",
+  fallbacks: [
+    { provider: "openrouter", modelId: "fallback/one" },
+    { provider: "openrouter", modelId: "fallback/two" },
+  ],
+  apiKeys: { openrouter: "sk-test" },
+};
+
+/** Two providers configured, which is what makes a quota failure recoverable. */
+const crossProviderEnv: AppEnv = {
+  aiMode: "live",
+  provider: "openrouter",
+  model: "openrouter/free",
+  fallbacks: [
+    { provider: "openrouter", modelId: "openrouter/second" },
+    { provider: "groq", modelId: "llama-3.3-70b-versatile" },
+  ],
+  apiKeys: { openrouter: "sk-or-test", groq: "gsk-test" },
 };
 
 const schema = z.object({ headline: z.string() });
@@ -140,7 +156,7 @@ describe("runStructured under a throttled or broken provider", () => {
     expect((failure as AiFailureError).retryAfterSeconds).toBe(60);
   });
 
-  it("does not walk the fallback list for a quota failure: the allowance is the key's", async () => {
+  it("stops at the provider whose allowance is spent instead of trying its other models", async () => {
     const seen: string[] = [];
     const model = modelFailing(providerError(429));
 
@@ -148,14 +164,36 @@ describe("runStructured under a throttled or broken provider", () => {
       ...liveCall,
       env: fallbackEnv,
       backoff: quickPolicy,
-      modelFor: (modelId) => {
-        seen.push(modelId);
+      modelFor: (target) => {
+        seen.push(`${target.provider}:${target.modelId}`);
         return model;
       },
     }).catch(() => undefined);
 
-    expect(seen).toEqual(["primary/model"]);
+    // Both fallbacks here belong to the same provider, so neither is attempted.
+    expect(seen).toEqual(["openrouter:primary/model"]);
     expect(model.doGenerateCalls).toHaveLength(quickPolicy.maxAttempts);
+  });
+
+  it("moves to a different provider when one provider's allowance is spent", async () => {
+    const seen: string[] = [];
+    const good = modelReturning({ headline: "Backend Engineer" });
+    const spent = modelFailing(providerError(429));
+
+    const result = await runStructured({
+      ...liveCall,
+      env: crossProviderEnv,
+      backoff: quickPolicy,
+      modelFor: (target) => {
+        seen.push(`${target.provider}:${target.modelId}`);
+        return target.provider === "groq" ? good : spent;
+      },
+    });
+
+    expect(result).toEqual({ headline: "Backend Engineer" });
+    // The second OpenRouter model is skipped: its key is the exhausted one.
+    expect(seen).toEqual(["openrouter:openrouter/free", "groq:llama-3.3-70b-versatile"]);
+    expect(good.doGenerateCalls).toHaveLength(1);
   });
 
   it("walks the fallback list in order after a 503 and stops at the model that answers", async () => {
@@ -167,9 +205,9 @@ describe("runStructured under a throttled or broken provider", () => {
       ...liveCall,
       env: fallbackEnv,
       backoff: quickPolicy,
-      modelFor: (modelId) => {
-        seen.push(modelId);
-        return modelId === "fallback/two" ? good : bad;
+      modelFor: (target) => {
+        seen.push(target.modelId);
+        return target.modelId === "fallback/two" ? good : bad;
       },
     });
 
@@ -192,7 +230,7 @@ describe("runStructured under a throttled or broken provider", () => {
 
     expect((failure as AiFailureError).kind).toBe("provider");
     expect((failure as AiFailureError).routing).toBe(true);
-    expect(model.doGenerateCalls).toHaveLength(fallbackEnv.fallbackModels.length + 1);
+    expect(model.doGenerateCalls).toHaveLength(fallbackEnv.fallbacks.length + 1);
   });
 
   it("does not retry a provider it cannot reach at all", async () => {

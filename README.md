@@ -34,8 +34,15 @@ Every structured model call goes through one seam (`src/lib/ai/run.ts`), which i
 calling feature provides under `AI_MODE=mock` or sent to OpenRouter under `AI_MODE=live`. Tests and local
 development never need network access or an API key.
 
-**Which mode applies**: an explicit `AI_MODE` always wins; otherwise a non-empty `OPENROUTER_API_KEY` means `live`,
-because a configured key is a request to use it; otherwise production means `live` (and fails loudly without a key);
+**Provider**: `AI_PROVIDER` selects `openrouter` or `groq` and `MODEL_ID` selects the model, so no variable is
+shaped like one vendor. With only one provider's key present that provider is used; with both, the other one is
+appended to the fallback chain automatically, which is the point of having two — when one vendor's free allowance is
+spent, the next attempt goes to a different vendor. Model ids stay vendor-shaped in `MODEL_ID`; which vendor receives
+them is `AI_PROVIDER`'s job, not part of the name. A fallback entry written `provider@model` targets the other
+provider. `@` is the separator because ids already contain `:` (`:free` variants) and `/` (vendor prefixes).
+
+**Which mode applies**: an explicit `AI_MODE` always wins; otherwise any non-empty provider key means `live`, because
+a configured key is a request to use it; otherwise production means `live` (and fails loudly without a key);
 otherwise `mock`. Whenever the app is answering from fixtures it says so in a banner on every page — mock mode
 replaces your own resume and posting with stored samples, so it must never read as a successful parse.
 
@@ -44,8 +51,10 @@ Two consequences worth knowing before designing anything on top of it:
 - `openrouter/free` is an **auto-router**: it can select a different backing model per request, so the same input
   may produce different output. Anything user-visible must not depend on model determinism — that is why the match
   score is computed by our own weighted rubric from extracted evidence rather than by the model.
-- Free-tier limits are shared across everyone using the same key (20 requests/minute; 50 requests/day below $10 of
-  credits, 1000/day above). Analyses are cached by content hash so repeat runs cost nothing.
+- Free-tier limits are shared across everyone using the same key: OpenRouter allows 20 requests/minute and 50
+  requests/day below $10 of credits (1000/day above); Groq applies per-model limits. A quota answer is treated as
+  belonging to that provider's key alone, so the chain moves to a different provider rather than retrying the
+  exhausted one. Analyses are cached by content hash so repeat runs cost nothing.
 - Failures are typed end to end. The seam raises `AiFailureError` with one of `quota`, `provider`, `offline`, `timeout`,
   `config`; `/api/analyze` maps the kind to a status and a message; `/match` renders a notice per class with the next
   step that fits it. Retries are bounded (three attempts per model, `Retry-After` honoured when sent, capped at 8 s and

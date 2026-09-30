@@ -106,8 +106,8 @@ function QuotaPanel({ identity, usage, identityError }: {
   const modeLine = identity === null
     ? identityError ?? "Reading the AI mode…"
     : identity.aiMode === "mock"
-      ? `AI mode: mock — every model call is answered from a recorded fixture, so no request leaves this browser (model: ${identity.model}).`
-      : `AI mode: live — model calls go to the provider (model: ${identity.model}).`;
+      ? `AI mode: mock — every model call is answered from a recorded fixture, so no request leaves this browser (${identity.provider}: ${identity.model}).`
+      : `AI mode: live — model calls go to ${identity.provider} (model: ${identity.model}).`;
 
   return (
     <section className="flex flex-col gap-1 rounded-lg border border-border/60 p-4" aria-label="AI mode and requests">

@@ -16,6 +16,7 @@
     "verify:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-themes.mjs"
   },
   "dependencies": {
+    "@ai-sdk/groq": "^4.0.53",
     "@base-ui/react": "^1.8.0",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/language": "^6.12.4",

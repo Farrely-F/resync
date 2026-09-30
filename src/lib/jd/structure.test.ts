@@ -8,8 +8,8 @@ import { extractJdFixture } from "@/lib/jd/fixtures/extract-jd";
 import { jdSchema } from "@/lib/jd/schema";
 import { buildJdPrompt, isInvalidModelOutputError, structureJd } from "@/lib/jd/structure";
 
-const mockEnv: AppEnv = { aiMode: "mock", model: "openrouter/free", fallbackModels: [], apiKey: null };
-const liveEnv: AppEnv = { aiMode: "live", model: "openrouter/free", fallbackModels: [], apiKey: "sk-test" };
+const mockEnv: AppEnv = { aiMode: "mock", provider: "openrouter", model: "openrouter/free", fallbacks: [], apiKeys: {} };
+const liveEnv: AppEnv = { aiMode: "live", provider: "openrouter", model: "openrouter/free", fallbacks: [], apiKeys: { openrouter: "sk-test" } };
 
 function modelReturning(payload: unknown) {
   return new MockLanguageModelV4({

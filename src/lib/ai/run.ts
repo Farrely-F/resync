@@ -5,8 +5,8 @@ import { defaultBackoffPolicy, planRetry, type BackoffPolicy } from "@/lib/ai/ba
 import { withDeadline } from "@/lib/ai/deadline";
 import { AiFailureError, toAiFailure } from "@/lib/ai/failures";
 import { inFlightModelRequests } from "@/lib/ai/inflight";
-import { createLiveModel } from "@/lib/ai/provider";
-import { getEnv, type AppEnv } from "@/lib/env";
+import { createModel } from "@/lib/ai/provider";
+import { getEnv, type AppEnv, type ModelTarget } from "@/lib/env";
 
 /**
  * Every structured AI call in the app goes through this seam. In mock mode the
@@ -63,7 +63,7 @@ export interface RunStructuredOptions<T> {
   /** Injected by tests to exercise the live branch without a network call. */
   model?: LanguageModel;
   /** Injected by tests that need to see which model each attempt used. */
-  modelFor?: (modelId: string) => LanguageModel;
+  modelFor?: (target: ModelTarget) => LanguageModel;
   /** Overrides the default budget for the whole live call. */
   deadlineMs?: number;
   /** Overrides the retry schedule for this call. */
@@ -75,9 +75,19 @@ export interface RunStructuredOptions<T> {
   signal?: AbortSignal;
 }
 
-/** The configured model first, then the fallbacks, each model only once. */
-export function orderedModelIds(env: AppEnv): string[] {
-  return [env.model, ...env.fallbackModels].filter((id, index, all) => all.indexOf(id) === index);
+/** The configured target first, then the fallbacks, each provider+model only once. */
+export function orderedTargets(env: AppEnv): ModelTarget[] {
+  const all: ModelTarget[] = [{ provider: env.provider, modelId: env.model }, ...env.fallbacks];
+  const seen = new Set<string>();
+
+  return all.filter((target) => {
+    const key = `${target.provider}\u0000${target.modelId}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function sleep(ms: number): Promise<void> {
@@ -114,13 +124,21 @@ async function generateStructured<T>(
 async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Promise<T> {
   const policy = options.backoff ?? defaultBackoffPolicy;
   const deadlineMs = options.deadlineMs ?? defaultDeadlineMs;
-  const modelIds = orderedModelIds(env);
+  const targets = orderedTargets(env);
   const deadlineAt = Date.now() + deadlineMs;
 
   let failure: AiFailureError | undefined;
+  // A quota answer belongs to one provider's key, not to the request. Another
+  // provider is worth trying; the same provider is not, so its remaining targets
+  // are skipped rather than spending requests that will be refused.
+  const spentProviders = new Set<ModelTarget["provider"]>();
 
-  for (const modelId of modelIds) {
-    const model = options.modelFor?.(modelId) ?? options.model ?? createLiveModel(env, modelId);
+  for (const target of targets) {
+    if (spentProviders.has(target.provider)) {
+      continue;
+    }
+
+    const model = options.modelFor?.(target) ?? options.model ?? createModel(target, env.apiKeys);
 
     for (let attempt = 1; attempt <= policy.maxAttempts; attempt += 1) {
       const remainingMs = deadlineAt - Date.now();
@@ -151,6 +169,13 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Pro
           break;
         }
 
+        // Quota is per provider, not per model: remember it so the other models
+        // of this vendor are skipped, but keep retrying this one — a 429 is a
+        // throttle, and `planRetry` is what decides whether waiting can help.
+        if (failure.kind === "quota") {
+          spentProviders.add(target.provider);
+        }
+
         const retryAfterMs = failure.retryAfterSeconds === null ? null : failure.retryAfterSeconds * 1000;
         const plan = planRetry(attempt, retryAfterMs, policy);
         if (!plan.retry || plan.delayMs >= deadlineAt - Date.now()) {
@@ -159,12 +184,6 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Pro
 
         await sleep(plan.delayMs);
       }
-    }
-
-    // A quota belongs to the key, not to a model: the next model would be
-    // refused the same way, so stop here and report it.
-    if (failure?.kind === "quota") {
-      throw failure;
     }
   }
 
@@ -192,6 +211,6 @@ export async function runStructured<T>(options: RunStructuredOptions<T>): Promis
   // Identical concurrent requests share one model call. The collapser is
   // per-process; see `src/lib/ai/inflight.ts` for what that does and does not
   // cover.
-  const key = [options.task, env.model, options.instructions, options.prompt].join("\u0000");
+  const key = [options.task, env.provider, env.model, options.instructions, options.prompt].join("\u0000");
   return inFlightModelRequests.run(key, call);
 }

@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { EnvError, defaultFallbackModels, defaultModel, parseEnv, summariseAiMode } from "./env";
+import { EnvError, parseEnv, providerDefaults, summariseAiMode } from "./env";
 
 describe("parseEnv", () => {
-  it("defaults to mock mode outside production, with no key required", () => {
+  it("defaults to mock mode with OpenRouter, and needs no key", () => {
     const env = parseEnv({}, "development");
 
     expect(env.aiMode).toBe("mock");
-    expect(env.apiKey).toBeNull();
-    expect(env.model).toBe(defaultModel);
+    expect(env.provider).toBe("openrouter");
+    expect(env.model).toBe(providerDefaults.openrouter.model);
+    expect(env.fallbacks).toEqual(
+      providerDefaults.openrouter.fallbacks.map((modelId) => ({ provider: "openrouter", modelId })),
+    );
+    expect(env.apiKeys).toEqual({});
   });
 
   it("treats a configured key as a request for real calls, without AI_MODE being set", () => {
@@ -20,15 +24,11 @@ describe("parseEnv", () => {
   });
 
   it("still honours an explicit AI_MODE=mock even when a key is present", () => {
-    const env = parseEnv({ AI_MODE: "mock", OPENROUTER_API_KEY: "sk-real" }, "development");
-
-    expect(env.aiMode).toBe("mock");
+    expect(parseEnv({ AI_MODE: "mock", OPENROUTER_API_KEY: "sk-real" }, "development").aiMode).toBe("mock");
   });
 
   it("keeps a blank key from implying live mode", () => {
-    const env = parseEnv({ OPENROUTER_API_KEY: "   " }, "development");
-
-    expect(env.aiMode).toBe("mock");
+    expect(parseEnv({ OPENROUTER_API_KEY: "   " }, "development").aiMode).toBe("mock");
   });
 
   it("defaults to live mode in production and then demands a key", () => {
@@ -46,7 +46,6 @@ describe("parseEnv", () => {
       parseEnv({ AI_MODE: "prod" }, "development");
       throw new Error("expected parseEnv to throw");
     } catch (error) {
-      expect(error).toBeInstanceOf(EnvError);
       const issues = (error as EnvError).issues.join(" ");
       expect(issues).toContain("AI_MODE");
       expect(issues).toContain("prod");
@@ -54,44 +53,130 @@ describe("parseEnv", () => {
     }
   });
 
-  it("accepts live mode once a key is present and trims surrounding whitespace", () => {
-    const env = parseEnv(
-      { AI_MODE: "live", OPENROUTER_API_KEY: "  sk-test  ", OPENROUTER_MODEL: " some/model:free " },
-      "development",
+  it("uses MODEL_ID when given, trimming it, and the provider default otherwise", () => {
+    const overridden = parseEnv({ MODEL_ID: " some/model:free ", OPENROUTER_API_KEY: "sk" }, "development");
+    expect(overridden.model).toBe("some/model:free");
+
+    for (const blank of ["", "   "]) {
+      expect(parseEnv({ MODEL_ID: blank, OPENROUTER_API_KEY: "sk" }, "development").model).toBe(
+        providerDefaults.openrouter.model,
+      );
+    }
+  });
+
+  it("infers the Groq provider from a Groq key alone, with Groq's own default model", () => {
+    const env = parseEnv({ GROQ_API_KEY: "gsk-real" }, "development");
+
+    expect(env.aiMode).toBe("live");
+    expect(env.provider).toBe("groq");
+    expect(env.model).toBe(providerDefaults.groq.model);
+    expect(env.fallbacks).toEqual(
+      providerDefaults.groq.fallbacks.map((modelId) => ({ provider: "groq", modelId })),
     );
-
-    expect(env).toEqual({
-      aiMode: "live",
-      model: "some/model:free",
-      fallbackModels: defaultFallbackModels,
-      apiKey: "sk-test",
-    });
   });
 
-  it("treats a blank model or key as absent rather than as a value", () => {
-    const env = parseEnv({ AI_MODE: "mock", OPENROUTER_MODEL: "   ", OPENROUTER_API_KEY: "   " }, "development");
+  it("keeps a vendor-shaped model id working through MODEL_ID, whichever provider is chosen", () => {
+    const env = parseEnv({ GROQ_API_KEY: "gsk", MODEL_ID: "openai/gpt-oss-120b" }, "development");
 
-    expect(env.model).toBe(defaultModel);
-    expect(env.apiKey).toBeNull();
+    expect(env.provider).toBe("groq");
+    expect(env.model).toBe("openai/gpt-oss-120b");
   });
 
-  it("uses the documented fallback list when none is configured", () => {
-    expect(parseEnv({}, "development").fallbackModels).toEqual(defaultFallbackModels);
+  it("adds the other configured provider as a last resort, which is the point of two keys", () => {
+    const env = parseEnv({ OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk" }, "development");
+
+    expect(env.provider).toBe("openrouter");
+    expect(env.fallbacks).toContainEqual({ provider: "groq", modelId: providerDefaults.groq.model });
+    // The primary provider's own fallbacks stay first.
+    expect(env.fallbacks[0].provider).toBe("openrouter");
+  });
+
+  it("puts the chosen provider first and the other one after it", () => {
+    const env = parseEnv({ AI_PROVIDER: "groq", OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk" }, "development");
+
+    expect(env.provider).toBe("groq");
+    expect(env.model).toBe(providerDefaults.groq.model);
+    expect(env.fallbacks).toContainEqual({ provider: "openrouter", modelId: providerDefaults.openrouter.model });
+  });
+
+  it("rejects an unknown AI_PROVIDER and names the ones it knows", () => {
+    try {
+      parseEnv({ AI_PROVIDER: "anthropic", OPENROUTER_API_KEY: "sk" }, "development");
+      throw new Error("expected parseEnv to throw");
+    } catch (error) {
+      const issues = (error as EnvError).issues.join(" ");
+      expect(issues).toContain("AI_PROVIDER");
+      expect(issues).toContain("openrouter, groq");
+    }
+  });
+
+  it("demands the key of the provider that was explicitly chosen", () => {
+    try {
+      parseEnv({ AI_PROVIDER: "groq", OPENROUTER_API_KEY: "sk" }, "development");
+      throw new Error("expected parseEnv to throw");
+    } catch (error) {
+      expect((error as EnvError).issues.join(" ")).toContain("GROQ_API_KEY");
+    }
   });
 
   it("reads a comma-separated fallback list, trimming blanks and keeping the order", () => {
     const env = parseEnv(
-      { OPENROUTER_FALLBACK_MODELS: " a/one:free ,, b/two:free ,\n c/three:free " },
+      { OPENROUTER_API_KEY: "sk", FALLBACK_MODEL_IDS: " a/one:free ,, b/two:free ,\n c/three:free " },
       "development",
     );
 
-    expect(env.fallbackModels).toEqual(["a/one:free", "b/two:free", "c/three:free"]);
+    expect(env.fallbacks).toEqual([
+      { provider: "openrouter", modelId: "a/one:free" },
+      { provider: "openrouter", modelId: "b/two:free" },
+      { provider: "openrouter", modelId: "c/three:free" },
+    ]);
+  });
+
+  it("reads a cross-provider fallback entry, written with @", () => {
+    const env = parseEnv(
+      { AI_PROVIDER: "openrouter", OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk", FALLBACK_MODEL_IDS: "groq@llama-3.1-8b-instant" },
+      "development",
+    );
+
+    expect(env.fallbacks).toEqual([{ provider: "groq", modelId: "llama-3.1-8b-instant" }]);
+  });
+
+  it("obeys an explicit fallback list exactly, without appending the other provider", () => {
+    const env = parseEnv(
+      { OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk", FALLBACK_MODEL_IDS: "only/this" },
+      "development",
+    );
+
+    expect(env.fallbacks).toEqual([{ provider: "openrouter", modelId: "only/this" }]);
+  });
+
+  it("rejects a fallback entry naming a provider it does not know, and one with no model", () => {
+    for (const [value, expected] of [
+      ["anthropic@claude", "unknown provider"],
+      ["groq@", "no model id"],
+    ] as const) {
+      try {
+        parseEnv({ OPENROUTER_API_KEY: "sk", FALLBACK_MODEL_IDS: value }, "development");
+        throw new Error("expected parseEnv to throw");
+      } catch (error) {
+        expect((error as EnvError).issues.join(" ")).toContain(expected);
+      }
+    }
+  });
+
+  it("never lists the primary model again as its own fallback", () => {
+    const env = parseEnv(
+      { MODEL_ID: "same/model", OPENROUTER_API_KEY: "sk", FALLBACK_MODEL_IDS: "same/model,other/model" },
+      "development",
+    );
+
+    expect(env.fallbacks).toEqual([{ provider: "openrouter", modelId: "other/model" }]);
   });
 
   it("falls back to the default list for a blank or comma-only value", () => {
     for (const value of ["", "   ", ",", " , , "]) {
-      expect(parseEnv({ OPENROUTER_FALLBACK_MODELS: value }, "development").fallbackModels).toEqual(
-        defaultFallbackModels,
+      expect(parseEnv({ OPENROUTER_API_KEY: "sk", FALLBACK_MODEL_IDS: value }, "development").fallbacks).toEqual(
+        providerDefaults.openrouter.fallbacks.map((modelId) => ({ provider: "openrouter", modelId })),
       );
     }
   });
@@ -101,36 +186,42 @@ describe("parseEnv", () => {
       parseEnv({ AI_MODE: "nonsense" }, "production");
       throw new Error("expected parseEnv to throw");
     } catch (error) {
-      const issues = (error as EnvError).issues;
-      expect(issues).toHaveLength(1);
-      expect(issues[0]).toContain("AI_MODE");
+      expect((error as EnvError).issues).toHaveLength(1);
+      expect((error as EnvError).issues[0]).toContain("AI_MODE");
     }
   });
 });
 
 describe("summariseAiMode", () => {
   it("reports mock with no key, and flags that AI_MODE was not set", () => {
-    const summary = summariseAiMode({}, "development");
-
-    expect(summary).toEqual({
+    expect(summariseAiMode({}, "development")).toEqual({
       aiMode: "mock",
-      model: defaultModel,
+      provider: "openrouter",
+      model: providerDefaults.openrouter.model,
       explicit: false,
       hasApiKey: false,
+      providersWithKeys: [],
       valid: true,
     });
   });
 
-  it("reports live and marks the mode as inferred when only a key is present", () => {
-    const summary = summariseAiMode({ OPENROUTER_API_KEY: "sk-real" }, "development");
+  it("reports live, the provider and the key it will use", () => {
+    const summary = summariseAiMode({ GROQ_API_KEY: "gsk" }, "development");
 
     expect(summary.aiMode).toBe("live");
-    expect(summary.explicit).toBe(false);
+    expect(summary.provider).toBe("groq");
     expect(summary.hasApiKey).toBe(true);
+    expect(summary.providersWithKeys).toEqual(["groq"]);
+  });
+
+  it("lists both providers when both keys are configured", () => {
+    expect(summariseAiMode({ OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk" }, "development").providersWithKeys).toEqual(
+      ["openrouter", "groq"],
+    );
   });
 
   it("marks an explicit mock, so the notice can point at the actual cause", () => {
-    const summary = summariseAiMode({ AI_MODE: "mock", OPENROUTER_API_KEY: "sk-real" }, "development");
+    const summary = summariseAiMode({ AI_MODE: "mock", OPENROUTER_API_KEY: "sk" }, "development");
 
     expect(summary.aiMode).toBe("mock");
     expect(summary.explicit).toBe(true);
@@ -141,7 +232,7 @@ describe("summariseAiMode", () => {
 
     expect(summary.valid).toBe(false);
     expect(summary.aiMode).toBe("mock");
-    expect(summary.model).toBe(defaultModel);
+    expect(summary.model).toBe(providerDefaults.openrouter.model);
   });
 
   it("does not claim validity when production has no key either", () => {
