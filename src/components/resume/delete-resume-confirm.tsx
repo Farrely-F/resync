@@ -1,14 +1,23 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 /**
- * Inline delete confirmation.
+ * Delete confirmation for one resume.
  *
- * It names the consequence and the specific resume, because the button it
- * replaces is one tap away from permanent data loss in a browser with no undo.
- * A local component rather than a dialog: nothing here needs to trap focus, and
- * an inline step keeps the whole action on one screen on a phone.
+ * An AlertDialog rather than an inline step: it traps focus, closes on Escape,
+ * and cannot be scrolled past, which is what a permanently destructive action
+ * warrants. It names the resume and the consequence, because the button it
+ * replaces is one tap away from data loss with no undo.
  */
 export function DeleteResumeConfirm({
   title,
@@ -22,19 +31,31 @@ export function DeleteResumeConfirm({
   onConfirm: () => void;
 }) {
   return (
-    <div className="mt-2 flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-      <p className="text-sm">
-        Delete <span className="font-medium">{title}</span>? Its parsed data and saved text are removed from this
-        browser, and this cannot be undone.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Button className="h-11" disabled={busy} onClick={onCancel} type="button" variant="outline">
-          Keep it
-        </Button>
-        <Button className="h-11" disabled={busy} onClick={onConfirm} type="button" variant="destructive">
-          Delete resume
-        </Button>
-      </div>
-    </div>
+    <AlertDialog
+      onOpenChange={(open) => {
+        if (!open && !busy) {
+          onCancel();
+        }
+      }}
+      open
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this resume?</AlertDialogTitle>
+          <AlertDialogDescription>
+            <span className="font-medium text-foreground">{title}</span> and its parsed data and saved text are
+            removed from this browser. This cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy} onClick={onCancel}>
+            Keep it
+          </AlertDialogCancel>
+          <AlertDialogAction disabled={busy} onClick={onConfirm} variant="destructive">
+            Delete resume
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

@@ -1,7 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 export type JdInputMode = "paste" | "url";
 
@@ -9,6 +12,8 @@ const modeLabels: Record<JdInputMode, string> = {
   paste: "Paste text",
   url: "From a link",
 };
+
+const modes = Object.keys(modeLabels) as JdInputMode[];
 
 interface JdSourceFormProps {
   mode: JdInputMode;
@@ -41,30 +46,29 @@ export function JdSourceForm({
         onSubmit();
       }}
     >
-      <div aria-label="Job description source" className="flex gap-1 rounded-lg border border-border p-1" role="group">
-        {(Object.keys(modeLabels) as JdInputMode[]).map((value) => (
-          <button
-            aria-pressed={mode === value}
-            className={cn(
-              "min-h-11 flex-1 rounded-md px-3 text-sm font-medium transition-colors",
-              mode === value ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
-            )}
-            key={value}
-            onClick={() => onModeChange(value)}
-            type="button"
-          >
+      <ToggleGroup
+        aria-label="Job description source"
+        className="w-full"
+        onValueChange={(value) => {
+          const next = value[0];
+          if (next === "paste" || next === "url") {
+            onModeChange(next);
+          }
+        }}
+        value={[mode]}
+      >
+        {modes.map((value) => (
+          <ToggleGroupItem className="min-h-11 flex-1" key={value} value={value}>
             {modeLabels[value]}
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
 
       {mode === "paste" ? (
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium" htmlFor="jd-text">
-            Job description text
-          </label>
-          <textarea
-            className="min-h-40 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          <Label htmlFor="jd-text">Job description text</Label>
+          <Textarea
+            className="min-h-40 leading-relaxed"
             id="jd-text"
             onChange={(event) => onTextChange(event.target.value)}
             placeholder="Paste the whole posting: title, requirements, responsibilities."
@@ -73,11 +77,9 @@ export function JdSourceForm({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium" htmlFor="jd-url">
-            Job posting link
-          </label>
-          <input
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          <Label htmlFor="jd-url">Job posting link</Label>
+          <Input
+            className="min-h-11"
             id="jd-url"
             inputMode="url"
             onChange={(event) => onUrlChange(event.target.value)}

@@ -12,6 +12,8 @@ import {
   resumeTex,
 } from "@/components/exports/resume-export";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { engineAssetTotalBytes, formatBytes } from "@/lib/compile/assets";
 import { deriveResumeTitle } from "@/lib/resume/schema";
 import { formatUpdatedAt } from "@/lib/resume/library";
@@ -103,20 +105,32 @@ export function ExportsPanel({ records }: { records: ResumeRecord[] }) {
         </p>
       ) : (
         <>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs font-medium text-muted-foreground">Resume to export</span>
-            <select
-              className="h-11 w-full rounded-md border border-border bg-background px-3 text-sm"
-              onChange={(event) => setSelectedId(event.target.value)}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="export-resume">Resume to export</Label>
+            <Select
+              items={records.map((candidate) => ({
+                value: candidate.id,
+                label: `${deriveResumeTitle(candidate.resume)} — updated ${formatUpdatedAt(candidate.updatedAt)}`,
+              }))}
+              onValueChange={(value) => {
+                if (typeof value === "string") {
+                  setSelectedId(value);
+                }
+              }}
               value={record.id}
             >
-              {records.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {deriveResumeTitle(candidate.resume)} — updated {formatUpdatedAt(candidate.updatedAt)}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger className="min-h-11 w-full" id="export-resume">
+                <SelectValue placeholder="Select a resume" />
+              </SelectTrigger>
+              <SelectContent>
+                {records.map((candidate) => (
+                  <SelectItem key={candidate.id} value={candidate.id}>
+                    {deriveResumeTitle(candidate.resume)} — updated {formatUpdatedAt(candidate.updatedAt)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <p className="text-xs leading-relaxed text-muted-foreground">
             {formatBytes(jsonBytes(record))} stored, {resolveTheme(record.themeId).name} theme,{" "}

@@ -16,6 +16,18 @@ import {
 } from "@/components/exports/confirmation";
 import { describeClearAll, describeDeletion, type ClearAllFacts } from "@/components/exports/messages";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { engineAssetTotalBytes, formatBytes } from "@/lib/compile/assets";
 import { deriveResumeTitle } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
@@ -75,19 +87,29 @@ function RecordItem({
         )}
       </div>
 
-      {confirming ? (
-        <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-          <p className="text-sm leading-relaxed">{message}</p>
-          <div className="flex flex-wrap gap-2">
-            <Button className="h-11" disabled={busy} onClick={onCancel} type="button" variant="outline">
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open && !busy) {
+            onCancel();
+          }
+        }}
+        open={confirming}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this record?</AlertDialogTitle>
+            <AlertDialogDescription>{message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy} onClick={onCancel}>
               Keep it
-            </Button>
-            <Button className="h-11" disabled={busy} onClick={onConfirm} type="button" variant="destructive">
+            </AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={onConfirm} variant="destructive">
               {busy ? "Deleting…" : confirmLabel}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </li>
   );
 }
@@ -110,40 +132,56 @@ function ClearAllConfirm({
   const allowed = phraseSatisfied(state);
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-      <p className="text-sm leading-relaxed">{describeClearAll(facts)}</p>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        The TeX engine cache is a separate action and is not touched by this one; it holds up to{" "}
-        {formatBytes(facts.engineCacheBytes)}. That download is repeatable, which is why it does not need the typed
-        phrase.
-      </p>
-      <label className="flex flex-col gap-1 text-xs">
-        <span className="text-muted-foreground">
-          Type <span className="font-mono text-foreground">{clearAllPhrase}</span> to confirm
-        </span>
-        <input
-          autoComplete="off"
-          className="h-11 w-full rounded-md border border-border bg-background px-3 font-mono text-sm"
-          onChange={(event) => onType(event.target.value)}
-          type="text"
-          value={state.typed}
-        />
-      </label>
-      {state.rejected ? (
-        <p className="flex items-start gap-2 text-xs text-destructive" role="alert">
-          <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-          <span>That does not match, so nothing was deleted.</span>
+    <AlertDialog
+      onOpenChange={(open) => {
+        if (!open && !busy) {
+          onCancel();
+        }
+      }}
+      open
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete all user data?</AlertDialogTitle>
+          <AlertDialogDescription>{describeClearAll(facts)}</AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          The TeX engine cache is a separate action and is not touched by this one; it holds up to{" "}
+          {formatBytes(facts.engineCacheBytes)}. That download is repeatable, which is why it does not need the typed
+          phrase.
         </p>
-      ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Button className="h-11" disabled={busy} onClick={onCancel} type="button" variant="outline">
-          Cancel
-        </Button>
-        <Button className="h-11" disabled={busy || !allowed} onClick={onConfirm} type="button" variant="destructive">
-          {busy ? "Deleting…" : "Delete everything"}
-        </Button>
-      </div>
-    </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="clear-all-phrase">
+            Type <span className="font-mono text-foreground">{clearAllPhrase}</span> to confirm
+          </Label>
+          <Input
+            autoComplete="off"
+            className="h-11 font-mono"
+            id="clear-all-phrase"
+            onChange={(event) => onType(event.target.value)}
+            value={state.typed}
+          />
+        </div>
+
+        {state.rejected ? (
+          <p className="flex items-start gap-2 text-xs text-destructive" role="alert">
+            <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <span>That does not match, so nothing was deleted.</span>
+          </p>
+        ) : null}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy} onClick={onCancel}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction disabled={busy || !allowed} onClick={onConfirm} variant="destructive">
+            {busy ? "Deleting…" : "Delete everything"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

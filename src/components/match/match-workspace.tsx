@@ -9,6 +9,8 @@ import { JdSourceForm, type JdInputMode } from "@/components/jd/jd-source-form";
 import { JdSummary } from "@/components/jd/jd-summary";
 import { ResumePicker } from "@/components/jd/resume-picker";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toRequestFailure, type AiFailureError } from "@/lib/ai/failures";
 import { browserUsageStore, readModelRequests, recordModelRequest, type ModelRequestUsage } from "@/lib/ai/usage";
 import { isIntakeError, jdRecordFromIntake, type JdIntakeResponse, type JdIntakeSuccess } from "@/lib/jd/api";
@@ -377,21 +379,30 @@ export function MatchWorkspace() {
         ) : (
           <>
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium" htmlFor="stored-jd">
-                Stored posting
-              </label>
-              <select
-                className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                id="stored-jd"
-                onChange={(event) => selectJd(event.target.value)}
-                value={selectedJdId ?? ""}
+              <Label htmlFor="stored-jd">Stored posting</Label>
+              <Select
+                items={jds.map((record) => ({
+                  value: record.id,
+                  label: `${record.title} · ${new Date(record.updatedAt).toLocaleDateString()}`,
+                }))}
+                onValueChange={(value) => {
+                  if (typeof value === "string") {
+                    selectJd(value);
+                  }
+                }}
+                value={selectedJdId}
               >
-                {jds.map((record) => (
-                  <option key={record.id} value={record.id}>
-                    {record.title} · {new Date(record.updatedAt).toLocaleDateString()}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="min-h-11 w-full" id="stored-jd">
+                  <SelectValue placeholder="Select a stored posting" />
+                </SelectTrigger>
+                <SelectContent>
+                  {jds.map((record) => (
+                    <SelectItem key={record.id} value={record.id}>
+                      {record.title} · {new Date(record.updatedAt).toLocaleDateString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 {jds.length === 1
                   ? "The only posting stored in this browser."

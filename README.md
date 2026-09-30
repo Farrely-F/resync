@@ -48,6 +48,22 @@ Two consequences worth knowing before designing anything on top of it:
   a 45 s backstop in the browser. Identical concurrent requests share one model call, but only within the process that
   receives them — `src/lib/ai/inflight.ts` states what that does and does not cover.
 
+## UI
+
+Controls come from `src/components/ui/**`, generated from the shadcn registry — not hand-written. Add one with:
+
+```bash
+npx shadcn@4.21.0 add <component>     # e.g. select, alert-dialog, input, badge, card
+```
+
+The generated files are artefacts: use their variants and props rather than forking them, and prefer them over
+bespoke markup for inputs, textareas, selects, radio groups, toggles, cards, badges and notices. Confirmations for
+destructive actions use `AlertDialog`, so they trap focus and close on Escape instead of being a styled `div`.
+
+Two placement defaults are set in the primitive on purpose, so every select behaves the same way:
+`SelectContent` is popper-style (`sideOffset = 4`, `alignItemWithTrigger = false`), which anchors the list below the
+trigger rather than Base UI's default of aligning the selected item over it.
+
 ## Architecture notes
 
 - **Canonical data model**: JSON Resume (basics, work with bullets, education, skills, projects, certificates,

@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { CircleAlert, LoaderCircle, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { extractPastedText, extractResumeFile } from "@/lib/resume/extract";
 import { addResumeFromText } from "@/lib/resume/library";
 import type { ResumeRecord } from "@/lib/storage/types";
@@ -78,9 +80,7 @@ export function AddResumeForm({ onAdded }: { onAdded: (record: ResumeRecord) => 
       </p>
 
       <div className="mt-4 flex flex-col gap-2">
-        <label className="text-sm font-medium" htmlFor="resume-file">
-          Choose a file
-        </label>
+        <Label htmlFor="resume-file">Choose a file</Label>
         <input
           accept=".pdf,.docx,.txt,.md,.markdown,application/pdf,text/plain,text/markdown"
           className="block w-full cursor-pointer rounded-md border border-input bg-background p-3 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium"
@@ -98,11 +98,9 @@ export function AddResumeForm({ onAdded }: { onAdded: (record: ResumeRecord) => 
       </div>
 
       <div className="mt-4 flex flex-col gap-2">
-        <label className="text-sm font-medium" htmlFor="resume-text">
-          Or paste the resume text
-        </label>
-        <textarea
-          className="min-h-32 w-full rounded-md border border-input bg-background p-3 text-sm"
+        <Label htmlFor="resume-text">Or paste the resume text</Label>
+        <Textarea
+          className="min-h-32"
           disabled={busy}
           id="resume-text"
           onChange={(event) => setPastedText(event.target.value)}

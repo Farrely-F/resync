@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deriveResumeTitle } from "@/lib/resume/schema";
 import type { ResumeRecord } from "@/lib/storage/types";
 
@@ -26,26 +28,31 @@ export function ResumePicker({ resumes, loading, selectedId, onSelect }: ResumeP
     );
   }
 
+  const items = resumes.map((resume) => ({ value: resume.id, label: deriveResumeTitle(resume.resume) }));
+
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium" htmlFor="resume-id">
-        Resume
-      </label>
-      <select
-        className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        id="resume-id"
-        onChange={(event) => onSelect(event.target.value)}
-        value={selectedId ?? ""}
+      <Label htmlFor="resume-id">Resume</Label>
+      <Select
+        items={items}
+        onValueChange={(value) => {
+          if (typeof value === "string") {
+            onSelect(value);
+          }
+        }}
+        value={selectedId}
       >
-        <option disabled value="">
-          Select a resume
-        </option>
-        {resumes.map((resume) => (
-          <option key={resume.id} value={resume.id}>
-            {deriveResumeTitle(resume.resume)}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="min-h-11 w-full" id="resume-id">
+          <SelectValue placeholder="Select a resume" />
+        </SelectTrigger>
+        <SelectContent>
+          {items.map((item) => (
+            <SelectItem key={item.value} value={item.value}>
+              {item.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
