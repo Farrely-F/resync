@@ -10,7 +10,13 @@ import { getEnv, type AppEnv } from "@/lib/env";
  * its own recording instead of sharing one registry; a task with no fixture
  * fails loudly rather than quietly returning something made up.
  */
-export const aiTasks = ["parse-resume", "extract-jd", "analyze-match", "verify-suggestions"] as const;
+export const aiTasks = [
+  "parse-resume",
+  "extract-jd",
+  "analyze-match",
+  "suggest-adjustments",
+  "verify-suggestions",
+] as const;
 
 export type AiTask = (typeof aiTasks)[number];
 
