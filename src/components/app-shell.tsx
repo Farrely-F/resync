@@ -69,42 +69,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-dvh flex-col">
         <div aria-hidden className="aurora" />
 
-        {/* Global bar: full width, frosted, one hairline. Saturation is lifted so the colour behind it stays alive. */}
-        <header
-          className="sticky top-0 z-30 border-b border-foreground/[0.08] bg-background/80 backdrop-blur-2xl backdrop-saturate-[1.8]"
-          style={{ paddingTop: "env(safe-area-inset-top)" }}
-        >
+        <header className="sticky top-3 z-30 mx-auto hidden w-full max-w-5xl px-6 md:block">
           <LayoutGroup id="top-nav">
-            <nav aria-label="Primary" className="relative mx-auto flex h-12 max-w-5xl items-center px-5 md:px-6">
+            <nav className="flex h-12 items-center gap-2 rounded-full border border-white/60 bg-background/95 px-2 shadow-(--shadow-lift) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10">
               <Wordmark />
-              <ul className="absolute left-1/2 hidden h-full -translate-x-1/2 items-stretch text-[13px] md:flex">
+              <ul className="ml-auto flex items-center gap-0.5 text-sm">
                 {navItems.map(({ href, label }) => {
                   const active = isActive(pathname, href);
                   return (
                     <li className="relative" key={href}>
+                      {active && (
+                        <motion.span
+                          className="absolute inset-0 rounded-full bg-foreground/[0.07] ring-1 ring-foreground/[0.06]"
+                          layoutId="top-nav-pill"
+                          transition={glide}
+                        />
+                      )}
                       <Link
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "flex h-full items-center px-4 font-medium tracking-[-0.01em] text-foreground/60 transition-colors duration-200 hover:text-foreground",
+                          "relative block rounded-full px-4 py-1.5 font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground",
                           active && "text-foreground"
                         )}
                         href={href}
                       >
                         {label}
                       </Link>
-                      {active && (
-                        <motion.span
-                          className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-foreground"
-                          layoutId="top-nav-line"
-                          transition={glide}
-                        />
-                      )}
                     </li>
                   );
                 })}
               </ul>
               <Link
-                className="ml-auto inline-flex h-7 items-center rounded-full bg-primary px-3.5 text-[12px] font-medium text-primary-foreground transition-[transform,background-color] duration-300 ease-(--ease-out-expo) hover:bg-[color-mix(in_oklch,var(--primary),white_10%)] active:scale-95"
+                className="ml-1 hidden h-8 items-center rounded-full bg-foreground px-4 text-[13px] font-medium text-background transition-[transform,opacity] duration-300 ease-(--ease-out-expo) hover:scale-[1.04] active:scale-95 lg:inline-flex"
                 href="/match"
               >
                 New match
@@ -113,39 +109,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </LayoutGroup>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-32 pt-10 md:px-6 md:pb-16 md:pt-14">{children}</main>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-32 pt-8 md:px-6 md:pb-16 md:pt-12">{children}</main>
 
-        {/* Tab bar: flush to the edges like the system one, blurred, with the home indicator's space reserved. */}
-        <nav
-          aria-label="Primary tabs"
-          className="fixed inset-x-0 bottom-0 z-30 border-t border-foreground/[0.08] bg-background/80 backdrop-blur-2xl backdrop-saturate-[1.8] md:hidden"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <ul className="grid grid-cols-3">
-            {navItems.map(({ href, label, Icon }) => {
-              const active = isActive(pathname, href);
-              return (
-                <li key={href}>
-                  <Link
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "group flex h-[52px] flex-col items-center justify-center gap-0.5 text-[10px] font-medium tracking-[0.01em] text-foreground/50 transition-colors duration-200",
-                      active && "text-primary"
+        <LayoutGroup id="dock">
+          <nav
+            aria-label="Primary"
+            className="fixed inset-x-4 bottom-3 z-30 rounded-[28px] border border-white/60 bg-background/95 shadow-(--shadow-float) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 md:hidden dark:border-white/10"
+            style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <ul className="grid grid-cols-3 p-1.5">
+              {navItems.map(({ href, label, Icon }) => {
+                const active = isActive(pathname, href);
+                return (
+                  <li className="relative" key={href}>
+                    {active && (
+                      <motion.span
+                        className="absolute inset-0 rounded-[22px] bg-primary/12"
+                        layoutId="dock-pill"
+                        transition={glide}
+                      />
                     )}
-                    href={href}
-                  >
-                    <Icon
-                      aria-hidden
-                      className="size-[22px] transition-transform duration-300 ease-(--ease-out-expo) group-active:scale-90"
-                      strokeWidth={active ? 2.2 : 1.7}
-                    />
-                    {label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+                    <Link
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "relative flex min-h-12 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground transition-colors",
+                        active && "text-primary"
+                      )}
+                      href={href}
+                    >
+                      <Icon aria-hidden className="size-5" />
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        </LayoutGroup>
       </div>
     </GuidedTour>
   );
