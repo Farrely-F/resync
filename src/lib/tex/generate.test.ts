@@ -4,6 +4,7 @@ import { defaultSections, emptyResume, resumeSchema, type Resume } from "@/lib/r
 import { defaultTheme, themes } from "@/lib/themes";
 import { renderResume, renderResumeForThemeId, renderResumeReport, texFileName } from "@/lib/tex/generate";
 import { allowedPackages, forbiddenPackages, usedPackages } from "@/lib/tex/packages";
+import { validateTex } from "@/lib/tex/validate";
 
 function richResume(): Resume {
   return resumeSchema.parse({
@@ -233,6 +234,28 @@ describe("renderResume", () => {
     expect(renderResumeForThemeId(resume, "compact").tex).toBe(renderResume(resume, themes[2]));
     expect(renderResumeForThemeId(resume, "no-such-theme").tex).toBe(renderResume(resume, defaultTheme));
     expect(renderResumeForThemeId(resume, null).tex).toBe(renderResume(resume, defaultTheme));
+  });
+});
+
+describe("a url that has to be percent-encoded", () => {
+  it("still produces a document the validator accepts, in every theme", () => {
+    // The regression this guards: `latexUrl` encodes the URL for `\url`, the
+    // encoded form contains percent signs, and the validator read one as a comment
+    // — so a resume with a quote, a space or a literal percent in any link was
+    // told its document had an unclosed brace and could not be previewed.
+    const resume = resumeSchema.parse({
+      basics: { name: "Ada Lovelace", url: 'https://example.com/a b"c%20d' },
+      work: [{ name: "Northwind", highlights: [] }],
+      projects: [{ name: "pgqueue", url: "https://example.com/p?q=1 2" }],
+      certificates: [{ name: "AWS", url: "https://example.com/cert%2Fone" }],
+    });
+
+    for (const theme of themes) {
+      const { tex } = renderResumeForThemeId(resume, theme.id);
+
+      expect(tex).toContain("%22");
+      expect(validateTex(tex)).toEqual([]);
+    }
   });
 });
 

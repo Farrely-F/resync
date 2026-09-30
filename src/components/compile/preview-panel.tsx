@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Download, FileWarning, Loader2, RefreshCw, Wand2, Zap } from "lucide-react";
 
 import { EngineCacheCard } from "@/components/compile/engine-cache-card";
@@ -26,7 +26,7 @@ import { texFileName } from "@/lib/tex/generate";
  * The panel is explicit about which PDF is on screen: when it is older than the
  * document, it says so rather than letting the reader trust a stale page.
  */
-export function PreviewPanel({
+function PreviewPanelSurface({
   engine,
   tex,
   title,
@@ -333,3 +333,10 @@ export function PreviewPanel({
     </CollapsibleSection>
   );
 }
+
+/**
+ * Memoised, and the reason the engine's value is memoised too: while a field is
+ * being typed in, the document this panel shows has not changed, so there is
+ * nothing here to re-render — and the panel is a large subtree.
+ */
+export const PreviewPanel = memo(PreviewPanelSurface);

@@ -34,29 +34,46 @@ export interface DeletionFacts {
   bytes: number;
   /** Reports that point at this record and are left behind by the deletion. */
   dependentReports: number;
+  /**
+   * Documents written from this record, which go with it. A letter written from a
+   * report is an answer to that report; leaving it behind would leave a document
+   * that cannot be explained by anything still on the device.
+   */
+  dependentDocuments: number;
+}
+
+function dependentDocuments(total: number): string {
+  if (total === 0) {
+    return "";
+  }
+
+  const noun = total === 1 ? "document written from it" : "documents written from it";
+  return ` ${total} ${noun} ${total === 1 ? "is" : "are"} removed with it.`;
 }
 
 export function describeDeletion(kind: DeleteKind, name: string, facts: DeletionFacts): string {
   const { noun, contents } = descriptions[kind];
 
-  return `Delete “${name}”? ${count(1, noun)} (${formatBytes(facts.bytes)}) is removed from this browser, along with ${contents}. This cannot be undone.${remainingReports(facts.dependentReports)}`;
+  return `Delete “${name}”? ${count(1, noun)} (${formatBytes(facts.bytes)}) is removed from this browser, along with ${contents}.${dependentDocuments(facts.dependentDocuments)} This cannot be undone.${remainingReports(facts.dependentReports)}`;
 }
 
 export interface ClearAllFacts {
   resumes: number;
   jds: number;
   reports: number;
+  documents: number;
   bytes: number;
 }
 
 /** What clearing everything destroys, in the same words the store breakdown uses. */
 export function describeClearAll(facts: ClearAllFacts): string {
-  const records = facts.resumes + facts.jds + facts.reports;
+  const records = facts.resumes + facts.jds + facts.reports + facts.documents;
 
   return `Delete all user data? ${count(records, "stored record")} — ${count(facts.resumes, "resume")}, ${count(
     facts.jds,
     "job description",
-  )} and ${count(facts.reports, "match report")}, ${formatBytes(
-    facts.bytes,
-  )} in total — is removed from this browser. This cannot be undone.`;
+  )}, ${count(facts.reports, "match report")} and ${count(
+    facts.documents,
+    "written document",
+  )}, ${formatBytes(facts.bytes)} in total — is removed from this browser. This cannot be undone.`;
 }

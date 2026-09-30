@@ -1,3 +1,4 @@
+import type { DocumentRecord } from "@/lib/documents/types";
 import type { MatchReport } from "@/lib/match/types";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
 
@@ -30,9 +31,10 @@ export interface StorageBreakdown {
   resumes: StoreSize;
   jds: StoreSize;
   reports: StoreSize;
-  /** Sum of the three stores above, measured from the records themselves. */
+  documents: StoreSize;
+  /** Sum of the stores above, measured from the records themselves. */
   totalBytes: number;
-  /** Every stored record across the three stores. */
+  /** Every stored record across those stores. */
   totalRecords: number;
 }
 
@@ -44,16 +46,19 @@ export function accountStorage(input: {
   resumes: readonly ResumeRecord[];
   jds: readonly JdRecord[];
   reports: readonly MatchReport[];
+  documents: readonly DocumentRecord[];
 }): StorageBreakdown {
   const resumes = sizeOf(input.resumes);
   const jds = sizeOf(input.jds);
   const reports = sizeOf(input.reports);
+  const documents = sizeOf(input.documents);
 
   return {
     resumes,
     jds,
     reports,
-    totalBytes: resumes.bytes + jds.bytes + reports.bytes,
-    totalRecords: resumes.count + jds.count + reports.count,
+    documents,
+    totalBytes: resumes.bytes + jds.bytes + reports.bytes + documents.bytes,
+    totalRecords: resumes.count + jds.count + reports.count + documents.count,
   };
 }

@@ -52,6 +52,13 @@ function modelReturning(json: unknown) {
   });
 }
 
+/** A model that never answers: the case a shared budget exists for. */
+function modelHanging() {
+  return new MockLanguageModelV4({
+    doGenerate: () => new Promise<never>(() => {}),
+  });
+}
+
 function modelFailing(error: unknown) {
   return new MockLanguageModelV4({
     doGenerate: () => {
@@ -233,7 +240,49 @@ describe("runStructured under a throttled or broken provider", () => {
     expect(model.doGenerateCalls).toHaveLength(fallbackEnv.fallbacks.length + 1);
   });
 
-  it("does not retry a provider it cannot reach at all", async () => {
+  it("gives a stalled model only its share of the budget, so the next one is still tried", async () => {
+  // The regression this guards: the first attempt consumed the whole deadline, the
+  // call failed with a timeout, and the fallback model was never called — even
+  // though a fallback is exactly what a stalled provider needs.
+  const seen: string[] = [];
+  const good = modelReturning({ headline: "Backend Engineer" });
+
+  const result = await runStructured({
+    ...liveCall,
+    env: fallbackEnv,
+    deadlineMs: 2_000,
+    backoff: { ...quickPolicy, maxAttempts: 1 },
+    modelFor: (target) => {
+      seen.push(target.modelId);
+      return target.modelId === "primary/model" ? modelHanging() : good;
+    },
+  });
+
+  expect(result).toEqual({ headline: "Backend Engineer" });
+  expect(seen).toEqual(["primary/model", "fallback/one"]);
+});
+
+it("still reports a timeout when every model has had its share", async () => {
+  const seen: string[] = [];
+
+  const failure = await runStructured({
+    ...liveCall,
+    env: fallbackEnv,
+    deadlineMs: 600,
+    backoff: { ...quickPolicy, maxAttempts: 1 },
+    modelFor: (target) => {
+      seen.push(target.modelId);
+      return modelHanging();
+    },
+  }).catch((error: unknown) => error);
+
+  expect((failure as AiFailureError).kind).toBe("timeout");
+  // Every target was given a turn before the budget ran out: the budget is split
+  // between them rather than spent by the first one to stall.
+  expect(seen).toEqual(["primary/model", "fallback/one", "fallback/two"]);
+});
+
+it("does not retry a provider it cannot reach at all", async () => {
     const model = modelFailing(new TypeError("fetch failed", { cause: new Error("ECONNREFUSED") }));
 
     const failure = await runStructured({ ...liveCall, env: liveEnv, model, backoff: quickPolicy }).catch(

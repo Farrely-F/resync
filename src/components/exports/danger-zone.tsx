@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { engineAssetTotalBytes, formatBytes } from "@/lib/compile/assets";
 import { deriveResumeTitle } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
+import type { DocumentRecord } from "@/lib/documents/types";
 import type { MatchReport } from "@/lib/match/types";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
 
@@ -49,7 +50,12 @@ type RecordKindTarget = { kind: "resume" | "jd" | "report"; id: string };
 const deleteActions = {
   resume: (id: string) => getStorage().deleteResume(id),
   jd: (id: string) => getStorage().deleteJd(id),
-  report: (id: string) => getStorage().deleteReport(id),
+  // A document written from a report cannot outlive it: it answers a report that
+  // would no longer exist, and the prompt says so.
+  report: async (id: string) => {
+    await getStorage().deleteDocumentsForReport(id);
+    await getStorage().deleteReport(id);
+  },
 };
 
 function RecordItem({
@@ -189,12 +195,14 @@ export function DangerZone({
   resumes,
   jds,
   reports,
+  documents,
   breakdown,
   onChanged,
 }: {
   resumes: ResumeRecord[];
   jds: JdRecord[];
   reports: MatchReport[];
+  documents: DocumentRecord[];
   breakdown: StorageBreakdown;
   onChanged: () => Promise<void>;
 }) {
@@ -281,6 +289,7 @@ export function DangerZone({
                   message={describeDeletion("resume", deriveResumeTitle(record.resume), {
                     bytes: jsonBytes(record),
                     dependentReports: dependents,
+                    dependentDocuments: 0,
                   })}
                   meta={`${formatBytes(jsonBytes(record))} · ${record.mode === "manual" ? "hand-edited LaTeX" : "generated LaTeX"} · updated ${record.updatedAt.slice(0, 10)}`}
                   onCancel={() => edit({ type: "cancel" })}
@@ -313,7 +322,11 @@ export function DangerZone({
                   confirming={isConfirming(confirmation, target)}
                   key={record.id}
                   label={title}
-                  message={describeDeletion("jd", title, { bytes: jsonBytes(record), dependentReports: dependents })}
+                  message={describeDeletion("jd", title, {
+                    bytes: jsonBytes(record),
+                    dependentReports: dependents,
+                    dependentDocuments: 0,
+                  })}
                   meta={`${record.company ?? "No company"} · ${formatBytes(jsonBytes(record))} · updated ${record.updatedAt.slice(0, 10)}`}
                   onCancel={() => edit({ type: "cancel" })}
                   onConfirm={() => edit({ type: "confirm" })}
@@ -345,7 +358,11 @@ export function DangerZone({
                   confirming={isConfirming(confirmation, target)}
                   key={report.id}
                   label={label}
-                  message={describeDeletion("report", label, { bytes: jsonBytes(report), dependentReports: 0 })}
+                  message={describeDeletion("report", label, {
+                    bytes: jsonBytes(report),
+                    dependentReports: 0,
+                    dependentDocuments: documents.filter((document) => document.reportId === report.id).length,
+                  })}
                   meta={`${pair} · score ${report.score} · ${formatBytes(jsonBytes(report))} · ${report.createdAt.slice(0, 10)}`}
                   onCancel={() => edit({ type: "cancel" })}
                   onConfirm={() => edit({ type: "confirm" })}
@@ -373,6 +390,7 @@ export function DangerZone({
               resumes: breakdown.resumes.count,
               jds: breakdown.jds.count,
               reports: breakdown.reports.count,
+              documents: breakdown.documents.count,
               bytes: breakdown.totalBytes,
               engineCacheBytes: engineAssetTotalBytes,
             }}

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { PenLine } from "lucide-react";
 
 import { TourLauncher } from "@/components/tour/tour-launcher";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 import { ReportView } from "@/components/match/report-view";
 import { ReportAdjustments } from "@/components/suggestions/report-adjustments";
 
@@ -15,6 +19,10 @@ export default async function ReportPage({ params }: PageProps<"/report/[id]">) 
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="title">Match report</h1>
           <TourLauncher />
+          <Link className={cn(buttonVariants({ variant: "outline" }), "h-11 sm:h-9")} href={`/report/${id}/prepare`}>
+            <PenLine aria-hidden />
+            Write a letter, a message or prep
+          </Link>
         </div>
         <p className="text-sm text-muted-foreground">
           Report <span className="font-mono text-foreground">{id}</span>

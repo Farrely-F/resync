@@ -30,6 +30,9 @@ export const aiTasks = [
   "analyze-match",
   "suggest-adjustments",
   "verify-suggestions",
+  "write-cover-letter",
+  "write-outreach",
+  "prep-interview",
 ] as const;
 
 export type AiTask = (typeof aiTasks)[number];
@@ -151,7 +154,7 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trac
   // are skipped rather than spending requests that will be refused.
   const spentProviders = new Set<ModelTarget["provider"]>();
 
-  for (const target of targets) {
+  for (const [index, target] of targets.entries()) {
     if (spentProviders.has(target.provider)) {
       // Worth a line: a model that was configured but never tried is otherwise
       // indistinguishable from one that was tried and failed.
@@ -180,6 +183,20 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trac
         throw new AiFailureError("timeout", `The model did not answer within ${deadlineMs} ms.`, { cause: failure });
       }
 
+      /**
+       * What this attempt may spend.
+       *
+       * The budget is shared between the models that could still answer, because
+       * a model that hangs must not be able to spend an allowance the other models
+       * need. Without this, one stalled provider consumed the whole deadline and
+       * the fallback was never called — which is precisely the failure the
+       * fallback list exists for. The last target left gets whatever remains.
+       */
+      const targetsLeft = targets
+        .slice(index)
+        .filter((candidate) => !spentProviders.has(candidate.provider)).length;
+      const attemptMs = Math.max(1, Math.floor(remainingMs / Math.max(1, targetsLeft)));
+
       const attemptStartedAt = Date.now();
       trace.attempts = attempt;
       trace.target = target;
@@ -192,7 +209,7 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trac
       });
 
       try {
-        const value = await generateStructured(model, options, remainingMs, options.signal);
+        const value = await generateStructured(model, options, attemptMs, options.signal);
         logEvent("info", "ai.attempt.succeeded", {
           requestId: trace.requestId,
           task: options.task,
@@ -226,9 +243,33 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trac
           throw error;
         }
 
-        // A deadline is the end of the path, not something to retry inside it;
-        // offline and a rejected key are the same for every model in the list.
-        if (failure.kind === "timeout" || failure.kind === "offline" || failure.kind === "config") {
+        // A timeout ends this attempt's share, not necessarily the call: if the
+        // budget is not spent and another model is waiting its turn, trying it is
+        // the whole reason the list exists. When nothing is left to try, the
+        // deadline really is the end of the path.
+        if (failure.kind === "timeout") {
+          const budgetSpent = deadlineAt - Date.now() <= 0;
+          const anotherTarget = targets
+            .slice(index + 1)
+            .some((candidate) => !spentProviders.has(candidate.provider));
+
+          if (budgetSpent || !anotherTarget) {
+            throw failure;
+          }
+
+          logEvent("warn", "ai.target.abandoned", {
+            requestId: trace.requestId,
+            task: options.task,
+            provider: target.provider,
+            modelId: target.modelId,
+            attempt,
+            reason: "attempt-share-expired",
+          });
+          break;
+        }
+
+        // Offline and a rejected key are the same for every model in the list.
+        if (failure.kind === "offline" || failure.kind === "config") {
           throw failure;
         }
 

@@ -13,6 +13,29 @@ describe("validateTex", () => {
     expect(validateTex(tex)).toEqual([]);
   });
 
+  it("reads a percent-encoded url as text rather than as a comment", () => {
+    // `latexUrl` percent-encodes, because `\url` wants ASCII: a quote becomes
+    // `%22`, a space `%20`, a literal percent sign `%25`. Inside `\url` those are
+    // literal percent signs — the package sets its own catcodes — but the parser
+    // used here read one as the start of a comment, swallowed the argument's
+    // closing brace, and refused the preview for a document that compiles.
+    const tex = document("\\url{https://example.com/a%22b%20c%25d}\n");
+
+    expect(validateTex(tex)).toEqual([]);
+  });
+
+  it("still reports a real problem after a url, on the line it is on", () => {
+    // Masking the argument must not hide anything, and must not move the lines of
+    // what follows it.
+    const tex = document("\\url{https://example.com/a%22b}\nA {group that never ends\nlast line\n");
+
+    const problems = validateTex(tex);
+
+    expect(problems).toHaveLength(1);
+    expect(problems[0].kind).toBe("unbalanced-brace");
+    expect(problems[0].line).toBe(4);
+  });
+
   it("reports an opening brace that is never closed, with its line", () => {
     const problems = validateTex(document("Summary line\nA {group that never ends\nlast line\n"));
 

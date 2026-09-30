@@ -3,7 +3,7 @@
 import { LayoutGroup, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Settings, Target } from "lucide-react";
+import { Compass, FileText, Settings, Target } from "lucide-react";
 
 import { GuidedTour } from "@/components/tour/guided-tour";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/resumes", label: "Resumes", Icon: FileText },
   { href: "/match", label: "Match", Icon: Target },
+  { href: "/guide", label: "Guide", Icon: Compass },
   { href: "/settings", label: "Settings", Icon: Settings },
 ] as const;
 
@@ -117,7 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="fixed inset-x-4 bottom-3 z-30 rounded-[28px] border border-white/60 bg-background/95 shadow-(--shadow-float) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 md:hidden dark:border-white/10"
             style={{ marginBottom: "env(safe-area-inset-bottom)" }}
           >
-            <ul className="grid grid-cols-3 p-1.5">
+            <ul className="grid grid-cols-4 p-1.5">
               {navItems.map(({ href, label, Icon }) => {
                 const active = isActive(pathname, href);
                 return (

@@ -1,3 +1,4 @@
+import type { DocumentRecord } from "@/lib/documents/types";
 import type { Jd } from "@/lib/jd/schema";
 import type { MatchReport } from "@/lib/match/types";
 import type { Resume } from "@/lib/resume/schema";
@@ -63,6 +64,14 @@ export interface StorageApi {
   deleteReport(id: string): Promise<void>;
   /** Most recent report for an input identity, which is how repeat analyses avoid a model call. */
   findReportByInputHash(inputHash: string): Promise<MatchReport | null>;
+
+  /** Letters, messages and interview prep written from a report, newest first. */
+  listDocuments(): Promise<DocumentRecord[]>;
+  getDocument(id: string): Promise<DocumentRecord | null>;
+  putDocument(record: DocumentRecord): Promise<void>;
+  deleteDocument(id: string): Promise<void>;
+  /** Deleting a report takes the documents written from it: they cannot outlive it. */
+  deleteDocumentsForReport(reportId: string): Promise<void>;
 
   estimate(): Promise<StorageEstimate>;
   clearUserData(): Promise<void>;

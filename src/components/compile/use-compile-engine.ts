@@ -277,17 +277,35 @@ export function useCompileEngine({ tex, auto }: { tex: string; auto: boolean }):
     return () => clearTimeout(timer);
   }, [auto, blocked, compiledTex, enqueue, engineReady, tex]);
 
-  return {
-    phase,
-    problems,
-    blocked,
-    lastPdf,
-    compiledTex,
-    consentGranted,
-    engineReady,
-    cacheToken,
-    compile,
-    acceptConsent,
-    refreshGate,
-  };
+  // Memoised so the value only changes when something in it does: the panel that
+  // renders it can then skip a render per keystroke, which is most of what makes
+  // typing in the editor cheap.
+  return useMemo(
+    () => ({
+      phase,
+      problems,
+      blocked,
+      lastPdf,
+      compiledTex,
+      consentGranted,
+      engineReady,
+      cacheToken,
+      compile,
+      acceptConsent,
+      refreshGate,
+    }),
+    [
+      acceptConsent,
+      blocked,
+      cacheToken,
+      compile,
+      compiledTex,
+      consentGranted,
+      engineReady,
+      lastPdf,
+      phase,
+      problems,
+      refreshGate,
+    ],
+  );
 }
