@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AiFailureError, type AiFailureKind } from "@/lib/ai/failures";
+import { failureStatusByKind } from "@/lib/ai/http";
 import { MissingFixtureError } from "@/lib/ai/run";
 import { getEnv } from "@/lib/env";
 import { jdSchema } from "@/lib/jd/schema";
@@ -32,49 +33,29 @@ const requestSchema = z.object({
 });
 
 /**
- * Status and copy per failure kind, so the page can tell the four cases apart
- * and offer the next step that fits each one. The `reason` is the kind itself:
- * one vocabulary from the provider call to the notice the user reads.
+ * Copy per failure kind, so the page can tell the four cases apart and offer the
+ * next step that fits each one. Statuses and the wire shape are shared with the
+ * suggestions route in `src/lib/ai/http.ts`; only the wording is specific here.
  */
-const failureResponses: Record<AiFailureKind, { status: number; message: string }> = {
-  quota: {
-    status: 429,
-    message:
-      "The model provider refused the request because this key's request allowance is used up. The allowance is shared and resets on the provider's side.",
-  },
-  provider: {
-    status: 503,
-    message:
-      "No model provider would take this request, including the fallback models configured for this server. Nothing about the resume or posting caused it.",
-  },
-  offline: {
-    status: 504,
-    message: "The model provider could not be reached from this server, so no analysis was run.",
-  },
-  timeout: {
-    status: 504,
-    message: "The model did not answer within the time this server allows for one analysis.",
-  },
-  config: {
-    status: 500,
-    message: "The model provider rejected this server's API key, so no analysis was run.",
-  },
-  unknown: {
-    status: 502,
-    message: "The match analysis could not be completed.",
-  },
+const failureMessages: Record<AiFailureKind, string> = {
+  quota:
+    "The model provider refused the request because this key's request allowance is used up. The allowance is shared and resets on the provider's side.",
+  provider:
+    "No model provider would take this request, including the fallback models configured for this server. Nothing about the resume or posting caused it.",
+  offline: "The model provider could not be reached from this server, so no analysis was run.",
+  timeout: "The model did not answer within the time this server allows for one analysis.",
+  config: "The model provider rejected this server's API key, so no analysis was run.",
+  unknown: "The match analysis could not be completed.",
 };
 
 /** The wire answer for a classified model failure: status, reason, copy, and the wait if any. */
 export function failureResponse(error: AiFailureError): { status: number; body: AnalyzeFailure } {
-  const { status, message } = failureResponses[error.kind];
-
   return {
-    status,
+    status: failureStatusByKind[error.kind],
     body: {
       error: {
         reason: error.kind,
-        message,
+        message: failureMessages[error.kind],
         kind: error.kind,
         retryAfterSeconds: error.retryAfterSeconds,
       },

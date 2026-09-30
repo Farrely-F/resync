@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AiFailureError, toAiFailure, type AiFailureKind } from "@/lib/ai/failures";
+import { failureStatusByKind } from "@/lib/ai/http";
 import { MissingFixtureError } from "@/lib/ai/run";
 import { getEnv } from "@/lib/env";
 import { jdSchema } from "@/lib/jd/schema";
@@ -48,46 +49,31 @@ const requestSchema = z.object({
   ),
 });
 
-/** Status and copy per failure kind. The statuses are the ones `/api/analyze` uses. */
-const failureResponses: Record<AiFailureKind, { status: number; message: string }> = {
-  quota: {
-    status: 429,
-    message:
-      "The model provider refused the request because this key's request allowance is used up, so no adjustments were generated. The allowance is shared and resets on the provider's side.",
-  },
-  provider: {
-    status: 503,
-    message:
-      "No model provider would take this request, including the fallback models configured for this server. Nothing about the resume or posting caused it.",
-  },
-  offline: {
-    status: 504,
-    message: "The model provider could not be reached from this server, so no adjustments were generated.",
-  },
-  timeout: {
-    status: 504,
-    message: "The model did not answer within the time this server allows for a suggestion run, so nothing was generated.",
-  },
-  config: {
-    status: 500,
-    message: "The model provider rejected this server's API key, so no adjustments were generated.",
-  },
-  unknown: {
-    status: 502,
-    message: "The adjustments could not be generated.",
-  },
+/**
+ * Copy per failure kind. Statuses and the wire shape are shared with
+ * `/api/analyze` through `src/lib/ai/http.ts`; only the wording differs, because
+ * a suggestion run makes two model calls and says so.
+ */
+const failureMessages: Record<AiFailureKind, string> = {
+  quota:
+    "The model provider refused the request because this key's request allowance is used up, so no adjustments were generated. The allowance is shared and resets on the provider's side.",
+  provider:
+    "No model provider would take this request, including the fallback models configured for this server. Nothing about the resume or posting caused it.",
+  offline: "The model provider could not be reached from this server, so no adjustments were generated.",
+  timeout:
+    "The model did not answer within the time this server allows for a suggestion run, so nothing was generated.",
+  config: "The model provider rejected this server's API key, so no adjustments were generated.",
+  unknown: "The adjustments could not be generated.",
 };
 
 /** The wire answer for a classified model failure: status, reason, copy, and the wait if any. */
 export function failureResponse(error: AiFailureError): { status: number; body: SuggestionsFailure } {
-  const { status, message } = failureResponses[error.kind];
-
   return {
-    status,
+    status: failureStatusByKind[error.kind],
     body: {
       error: {
         reason: error.kind,
-        message,
+        message: failureMessages[error.kind],
         kind: error.kind,
         retryAfterSeconds: error.retryAfterSeconds,
       },
