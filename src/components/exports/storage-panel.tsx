@@ -44,7 +44,7 @@ export function StoragePanel({
         Storage on this device
       </h2>
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-4">
+      <div className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium">Your data</h3>
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -76,7 +76,7 @@ export function StoragePanel({
 
       <EngineCacheCard onCleared={onChanged} />
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-4">
+      <div className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
         <h3 className="text-sm font-medium">Browser-reported usage for this origin</h3>
         {!estimate.supported ? (
           <p className="text-xs leading-relaxed text-muted-foreground">

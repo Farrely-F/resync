@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <header className="sticky top-3 z-30 mx-auto hidden w-full max-w-5xl px-6 md:block">
         <LayoutGroup id="top-nav">
-          <nav className="flex h-12 items-center gap-2 rounded-full border border-white/60 bg-background/70 px-2 shadow-(--shadow-lift) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10">
+          <nav className="flex h-12 items-center gap-2 rounded-full border border-white/60 bg-background/90 px-2 shadow-(--shadow-lift) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10">
             <Wordmark />
             <ul className="ml-auto flex items-center gap-0.5 text-sm">
               {navItems.map(({ href, label }) => {
@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <LayoutGroup id="dock">
         <nav
           aria-label="Primary"
-          className="fixed inset-x-4 bottom-3 z-30 rounded-[28px] border border-white/60 bg-background/75 shadow-(--shadow-float) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 md:hidden dark:border-white/10"
+          className="fixed inset-x-4 bottom-3 z-30 rounded-[28px] border border-white/60 bg-background/90 shadow-(--shadow-float) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 md:hidden dark:border-white/10"
           style={{ marginBottom: "env(safe-area-inset-bottom)" }}
         >
           <ul className="grid grid-cols-3 p-1.5">

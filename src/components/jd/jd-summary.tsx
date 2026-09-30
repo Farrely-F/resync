@@ -49,7 +49,7 @@ export function JdSummary({ structured, source, url, rawText, hints, stored }: J
   ].filter((fact): fact is string => Boolean(fact));
 
   return (
-    <article className="flex flex-col gap-5 rounded-xl border border-border/60 p-4">
+    <article className="flex flex-col gap-5 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
       <header className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold tracking-tight">{deriveJdTitle(structured, hints.title ?? "Untitled job")}</h2>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

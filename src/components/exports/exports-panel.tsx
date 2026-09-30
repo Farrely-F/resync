@@ -84,7 +84,7 @@ export function ExportsPanel({ records }: { records: ResumeRecord[] }) {
   }
 
   return (
-    <section aria-labelledby="exports-heading" className="flex flex-col gap-4 rounded-lg border border-border/60 p-4">
+    <section aria-labelledby="exports-heading" className="flex flex-col gap-4 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-medium" id="exports-heading">
           Exports

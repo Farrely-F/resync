@@ -72,7 +72,7 @@ export function ReportAdjustments({ id, children }: { id: string; children: Reac
   return (
     <div className="flex flex-col gap-6">
       {freshness === "changed" ? (
-        <p className="rounded-lg border border-border/60 bg-muted/40 p-3 text-xs leading-relaxed" role="status">
+        <p className="rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3 text-xs leading-relaxed" role="status">
           The resume or posting behind this report has changed since it was saved, so the numbers below describe the
           earlier version — they are not the score of what is stored now. Analysing the current version produces a new
           report.{" "}

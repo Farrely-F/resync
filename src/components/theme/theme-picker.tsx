@@ -41,8 +41,8 @@ export function ThemePicker({
           return (
             <Label
               className={cn(
-                "min-h-11 flex-row items-start gap-3 rounded-lg border border-border/60 p-3 leading-normal font-normal transition-colors",
-                "has-checked:border-foreground has-checked:bg-muted hover:bg-muted/50",
+                "min-h-11 flex-row items-start gap-3 rounded-2xl bg-card ring-1 ring-foreground/[0.08] shadow-(--shadow-rest) p-3.5 leading-normal font-normal transition-[box-shadow,background-color,transform] duration-300",
+                "hover:shadow-(--shadow-lift) has-checked:bg-accent has-checked:ring-2 has-checked:ring-primary has-checked:shadow-(--shadow-lift)",
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
               )}
               htmlFor={id}

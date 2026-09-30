@@ -73,7 +73,7 @@ export function AddResumeForm({ onAdded }: { onAdded: (record: ResumeRecord) => 
   }
 
   return (
-    <section className="rounded-lg border border-border/60 p-4">
+    <section className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
       <h2 className="text-sm font-semibold tracking-tight">Add a resume</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         PDF, DOCX, TXT or Markdown. The file stays in this browser; only its extracted text is structured.

@@ -82,7 +82,7 @@ export function CollapsibleSection({
     </Collapsible>
   );
 
-  const box = cn("rounded-lg border border-border/60", className);
+  const box = cn("rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest)", className);
 
   if (sortable !== undefined) {
     return (

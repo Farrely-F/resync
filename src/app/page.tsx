@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <div className="flex flex-col gap-28 md:gap-44">
-      <section className="grid items-center gap-12 pt-4 md:grid-cols-[1.25fr_1fr] md:gap-10 md:pt-10">
+      <section className="grid items-center gap-12 pt-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] md:gap-10 md:pt-10">
         <div className="flex flex-col gap-7">
           <h1 className="display animate-[rise_0.9s_var(--ease-out-expo)_both] motion-reduce:animate-none">
             Know exactly where your resume <span className="ink">misses</span> the job.

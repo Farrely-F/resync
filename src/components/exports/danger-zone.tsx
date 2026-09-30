@@ -74,7 +74,7 @@ function RecordItem({
   onConfirm: () => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-2 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col">
           <span className="text-sm font-medium break-words">{label}</span>
@@ -357,7 +357,7 @@ export function DangerZone({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-destructive/40 p-4">
+      <div className="flex flex-col gap-3 rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium">Clear all user data</h3>
           <p className="text-xs leading-relaxed text-muted-foreground">

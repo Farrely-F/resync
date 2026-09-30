@@ -87,7 +87,7 @@ function SuggestionCard({ suggestion, report, resume, decision, busy, applyError
   const blocked = manual === true ? applyRefusalMessages["manual-mode"] : stale ? applyRefusalMessages["stale-target"] : null;
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-2 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
       <p className="text-sm font-medium">{suggestion.requirement}</p>
       <p className="text-xs text-muted-foreground">
         {criterion === undefined
@@ -260,14 +260,14 @@ export function SuggestionsPanel({
       </p>
 
       {resume === null || jd === null ? (
-        <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-relaxed text-muted-foreground">
+        <p className="rounded-2xl border border-dashed border-foreground/15 bg-card/60 p-3 text-sm leading-relaxed text-muted-foreground">
           The {resume === null ? "resume" : "job description"} this report was built from is no longer stored in this
           browser, so there is nothing to adjust.
         </p>
       ) : (
         <>
           {manual ? (
-            <p className="rounded-lg border border-border/60 bg-muted/40 p-3 text-sm leading-relaxed" role="status">
+            <p className="rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3 text-sm leading-relaxed" role="status">
               {applyRefusalMessages["manual-mode"]}
             </p>
           ) : null}
@@ -322,7 +322,7 @@ export function SuggestionsPanel({
       ) : null}
 
       {generated && suggestions.length === 0 ? (
-        <p className="rounded-lg border border-border/60 p-3 text-sm leading-relaxed">
+        <p className="rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3 text-sm leading-relaxed">
           {dropped.length === 0
             ? "The model proposed no adjustments for this report."
             : groundingDropped === dropped.length
@@ -350,7 +350,7 @@ export function SuggestionsPanel({
       ) : null}
 
       {rejected.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+        <div className="flex flex-col gap-2 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
           <p className="text-sm">
             {rejected.length} {rejected.length === 1 ? "proposal was" : "proposals were"} rejected. Your resume is
             unchanged, and generating again will not apply {rejected.length === 1 ? "it" : "them"}.
@@ -363,7 +363,7 @@ export function SuggestionsPanel({
           {showRejected ? (
             <ul className="flex flex-col gap-2">
               {rejected.map((suggestion) => (
-                <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3" key={suggestion.id}>
+                <li className="flex flex-col gap-2 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3" key={suggestion.id}>
                   <p className="text-sm font-medium">{suggestion.requirement}</p>
                   <p className="text-xs leading-relaxed break-words text-muted-foreground">{suggestion.proposed}</p>
                   <div>
@@ -384,7 +384,7 @@ export function SuggestionsPanel({
       ) : null}
 
       {dropped.length > 0 ? (
-        <details className="rounded-lg border border-border/60 p-3">
+        <details className="rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
           <summary className="cursor-pointer text-sm font-medium">
             What the checks removed ({dropped.length})
           </summary>

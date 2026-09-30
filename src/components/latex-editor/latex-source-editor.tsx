@@ -117,7 +117,7 @@ export function LatexSourceEditor({
 
   return (
     <div
-      className="h-80 min-w-0 overflow-hidden rounded-lg border border-border/60 bg-muted/40 text-[16px] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:h-[28rem] sm:text-xs"
+      className="h-80 min-w-0 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] text-[16px] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:h-[28rem] sm:text-xs"
       ref={host}
     />
   );

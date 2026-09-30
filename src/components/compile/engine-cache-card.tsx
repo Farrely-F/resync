@@ -83,7 +83,7 @@ export function EngineCacheCard({ onCleared, refreshToken = 0 }: { onCleared?: (
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-border/60 p-4">
+    <section className="flex flex-col gap-3 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-4">
       <h2 className="text-sm font-medium">TeX engine on this device</h2>
 
       {status === null ? (

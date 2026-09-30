@@ -39,7 +39,7 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
   const { criterion, weight, credit, earned, counted } = row;
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-2 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
       <p className="text-sm font-medium">{criterion.requirement}</p>
       <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span className="rounded-md bg-muted px-2 py-0.5 text-foreground">{kindLabels[criterion.kind]}</span>
@@ -62,7 +62,7 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
 
 function CheckRow({ check }: { check: MatchReport["atsChecks"][number] }) {
   return (
-    <li className="flex flex-col gap-1 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-1 rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3">
       <p className="flex items-center gap-2 text-sm font-medium">
         <span
           aria-hidden
@@ -122,7 +122,7 @@ export function ReportView({ id }: { id: string }) {
 
   if (loaded.failed !== null) {
     return (
-      <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm" role="alert">
+      <p className="rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4 text-sm" role="alert">
         This browser would not open its local storage, so the report could not be read ({loaded.failed}).
       </p>
     );
@@ -132,7 +132,7 @@ export function ReportView({ id }: { id: string }) {
   if (report === null) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="rounded-lg border border-border/60 p-4 text-sm text-muted-foreground">
+        <p className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4 text-sm text-muted-foreground">
           No report with id <span className="font-mono text-foreground">{id}</span> is stored in this browser. Reports
           live in this browser only, so a link from another device or profile will not resolve here.
         </p>
@@ -156,7 +156,7 @@ export function ReportView({ id }: { id: string }) {
           model.
         </p>
         {drifted ? (
-          <p className="rounded-lg border border-border/60 p-3 text-xs leading-relaxed text-muted-foreground">
+          <p className="rounded-xl bg-muted/60 ring-1 ring-foreground/[0.05] p-3 text-xs leading-relaxed text-muted-foreground">
             This report was saved under rubric v{report.rubricVersion} with a score of {formatScore(report.score)}%. The
             weights have changed since, so re-scoring the stored criteria now gives {formatScore(rubric.score)}%. The
             evidence is unchanged.
@@ -167,7 +167,7 @@ export function ReportView({ id }: { id: string }) {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">The inputs</h2>
         {resume === null || jd === null ? (
-          <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card/60 p-3 text-sm leading-relaxed text-muted-foreground">
             The inputs are gone: the{" "}
             {[resume === null ? "resume" : null, jd === null ? "job description" : null]
               .filter((part): part is string => part !== null)
@@ -234,7 +234,7 @@ export function ReportView({ id }: { id: string }) {
         {report.summary === null ? (
           <p className="text-sm text-muted-foreground">The model returned no commentary for this analysis.</p>
         ) : (
-          <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card/60 p-3 text-sm leading-relaxed text-muted-foreground">
             {report.summary}
           </p>
         )}

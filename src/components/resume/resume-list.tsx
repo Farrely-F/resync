@@ -23,14 +23,14 @@ export function ResumeList({
 
   if (records.length === 0) {
     return (
-      <p className="rounded-lg border border-border/60 px-4 py-6 text-sm text-muted-foreground">
+      <p className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) px-4 py-6 text-sm text-muted-foreground">
         No resumes yet.
       </p>
     );
   }
 
   return (
-    <ul className="divide-y divide-border/60 rounded-lg border border-border/60">
+    <ul className="divide-y divide-border/60 overflow-hidden rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest)">
       {records.map((record) => {
         const sections = sectionsWithContent(record.resume);
 

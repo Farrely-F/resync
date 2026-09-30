@@ -21,7 +21,7 @@ export function ResumePicker({ resumes, loading, selectedId, onSelect }: ResumeP
 
   if (resumes.length === 0) {
     return (
-      <p className="rounded-lg border border-border/60 px-4 py-6 text-sm text-muted-foreground">
+      <p className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) px-4 py-6 text-sm text-muted-foreground">
         No resumes yet. <Link className="underline underline-offset-4 hover:text-foreground" href="/resumes">Add a resume</Link>{" "}
         first, then come back to compare it with a posting.
       </p>
