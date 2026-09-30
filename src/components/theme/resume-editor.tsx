@@ -360,6 +360,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
             engine={engine}
             live={livePreview}
             onLiveChange={setLivePreview}
+            onRepair={editSource}
             source={resumeDocument.source}
             tex={resumeDocument.tex}
             themeName={themeName}

@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, FileWarning, Loader2, RefreshCw, Zap } from "lucide-react";
+import { useMemo } from "react";
+import { Download, FileWarning, Loader2, RefreshCw, Wand2, Zap } from "lucide-react";
 
 import { EngineCacheCard } from "@/components/compile/engine-cache-card";
 import { CollapsibleSection } from "@/components/editor/collapsible-section";
@@ -11,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { engineAssetTotalBytes, formatBytes } from "@/lib/compile/assets";
+import { repairTex } from "@/lib/tex/repair";
 import { texFileName } from "@/lib/tex/generate";
 
 /**
@@ -32,6 +34,7 @@ export function PreviewPanel({
   source,
   live,
   onLiveChange,
+  onRepair,
 }: {
   engine: CompileEngine;
   /** The document as it stands, to tell a current preview from a stale one. */
@@ -41,9 +44,18 @@ export function PreviewPanel({
   source: "generated" | "manual";
   live: boolean;
   onLiveChange: (live: boolean) => void;
+  /** Writes a repaired source back through the editor's own hand-edit path. */
+  onRepair: (tex: string) => void;
 }) {
   const { phase, problems, blocked, lastPdf, compiledTex, consentGranted, engineReady } = engine;
   const stale = lastPdf !== null && compiledTex !== tex;
+  /**
+   * What the repair would do, computed from the problems already on screen so the
+   * reader can see the change before making it. Nothing is applied here: a repair
+   * is a guess about what the document meant, and a guess about someone's resume
+   * is not applied on their behalf.
+   */
+  const repair = useMemo(() => (blocked ? repairTex(tex) : { tex, fixes: [], remaining: [] }), [blocked, tex]);
   const compiling = phase.kind === "compiling";
   const pdfName = texFileName(title).replace(/\.tex$/, ".pdf");
 
@@ -108,6 +120,39 @@ export function PreviewPanel({
                 The TeX engine has not been started: it reads a document from the top and stops at the first of these,
                 and the line it stops on is rarely the one that caused it.
               </p>
+
+              {repair.fixes.length > 0 ? (
+                <div className="mt-3">
+                  <p className="text-xs leading-relaxed">
+                    {repair.fixes.length === 1
+                      ? "One of these can be repaired here:"
+                      : `${repair.fixes.length} of these can be repaired here:`}
+                  </p>
+                  <ul className="mt-1 list-disc pl-5 text-xs leading-relaxed">
+                    {repair.fixes.map((fix) => (
+                      <li key={fix}>{fix}.</li>
+                    ))}
+                  </ul>
+                  <div className="mt-3">
+                    <Button className="h-11" onClick={() => onRepair(repair.tex)} type="button">
+                      <Wand2 aria-hidden />
+                      {repair.fixes.length === 1 ? "Fix it" : "Fix them"}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed">
+                    {source === "generated"
+                      ? "This edits the LaTeX source itself, so the document becomes yours: the fields stop generating it, and you can undo the change in the source editor below."
+                      : "This edits the LaTeX saved with this resume, which is already its document. You can undo the change in the source editor below."}{" "}
+                    Nothing else in your resume is touched.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs leading-relaxed">
+                  {problems.some((problem) => problem.kind === "unreadable")
+                    ? "This one cannot be repaired automatically: the source does not parse at all, so there is no structure to correct. The fix is in the LaTeX source below."
+                    : "Nothing here can be repaired automatically; the change has to be made in the LaTeX source below."}
+                </p>
+              )}
             </AlertDescription>
           </Alert>
         </div>

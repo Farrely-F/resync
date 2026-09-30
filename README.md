@@ -136,6 +136,14 @@ npm run dev | jq -c 'select(.level == "error" or .event == "route.parse-resume.f
   one section, the lines inside one entry — is its own drag context, so an item can never be dropped into a different
   list; that move has no meaning in the data model. Touch needs a short hold before a drag starts, so a swipe that
   begins on a handle still scrolls the page.
+- **A broken document offers its own repair, and never takes it silently.** The problems `validateTex` reports are
+  all one thing that failed to match another — a brace, an environment — so they can be repaired without
+  understanding the document: `tex/repair.ts` closes a brace at the end of its line (before a comment, where it still
+  counts), removes a stray one, ends an unclosed environment at the end of the file innermost-first, and removes an
+  unmatched `\end`. It touches only the exact positions the validator named, so an escaped `\{`, a comment and a
+  verbatim body are safe, and it re-validates and reports what it could not fix rather than assuming it away. The
+  planned change is shown before it is applied, because a repair is a guess about what the document meant: applying it
+  edits the source, which in generated mode makes the document yours, and the copy says so.
 - **Collapsed sections in the editor are a reading aid, so that state is never stored**: opening a resume never hides
   a section the reader closed last time. Hiding a section is a different action, and it is the one that takes the
   section out of the generated document while keeping its entries.
