@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FileWarning, Loader2, RefreshCw } from "lucide-react";
 
 import { EngineCacheCard } from "@/components/compile/engine-cache-card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
   downloadEngineAssets,
@@ -18,7 +21,10 @@ import {
 import { grantConsent, readConsent, type ConsentRecord } from "@/lib/compile/consent";
 import { compileResumeTex } from "@/lib/compile/engine";
 import type { TexDiagnostics } from "@/lib/compile/errors";
+import type { ResumeRecord } from "@/lib/storage/types";
+import { documentSource } from "@/lib/tex/document";
 import { texFileName } from "@/lib/tex/generate";
+import { validateTex } from "@/lib/tex/validate";
 
 type Phase =
   | { kind: "checking" }
@@ -46,7 +52,12 @@ function gatePhase(consent: ConsentRecord | null, status: EngineCacheStatus): Ph
 }
 
 /**
- * Compile the generated LaTeX to a PDF in the browser.
+ * Compile the document of record to a PDF in the browser.
+ *
+ * The panel takes the stored record, not a string, and asks `documentSource` for
+ * the text: a hand-edited resume then compiles the same LaTeX the `.tex` export
+ * writes, which is not something a caller can get wrong by handing over the wrong
+ * rendering.
  *
  * The panel is a state machine because every state here has been a way for a
  * compiler UI to lie: a spinner with no end when the assets were never fetched,
@@ -55,10 +66,26 @@ function gatePhase(consent: ConsentRecord | null, status: EngineCacheStatus): Ph
  * reports bytes, a failure says what TeX said and keeps the last good PDF on
  * screen, and a missing asset names the command that fixes it.
  *
+ * Before any of that, the source is checked with `validateTex`: an unclosed brace
+ * or an unmatched `\begin` is reported with its line and the engine is not
+ * started, because both are cheap to see here and expensive to read out of an
+ * engine log.
+ *
  * Compilation itself runs in a Web Worker (see `src/lib/compile/engine.ts`) and
  * only from the Compile action — never on a keystroke.
  */
-export function CompilePanel({ title, tex, themeName }: { title: string; tex: string; themeName: string }) {
+export function CompilePanel({
+  title,
+  record,
+  themeName,
+}: {
+  title: string;
+  record: ResumeRecord;
+  themeName: string;
+}) {
+  const resumeDocument = useMemo(() => documentSource(record), [record]);
+  const problems = useMemo(() => validateTex(resumeDocument.tex), [resumeDocument.tex]);
+  const blocked = problems.length > 0;
   const [phase, setPhase] = useState<Phase>({ kind: "checking" });
   const [lastPdf, setLastPdf] = useState<CompiledPdf | null>(null);
   const [consentGranted, setConsentGranted] = useState(false);
@@ -102,6 +129,13 @@ export function CompilePanel({ title, tex, themeName }: { title: string; tex: st
   }, []);
 
   const compile = useCallback(async () => {
+    // The one rule the check exists for: bytes only move for a document that is at
+    // least well-formed. Every entry point into compile goes through here, so a
+    // disabled button is a courtesy rather than the guarantee.
+    if (blocked) {
+      return;
+    }
+
     try {
       const status = await engineCacheStatus();
       if (!status.supported) {
@@ -131,7 +165,7 @@ export function CompilePanel({ title, tex, themeName }: { title: string; tex: st
       }
 
       setPhase({ kind: "compiling" });
-      const outcome = await compileResumeTex({ tex });
+      const outcome = await compileResumeTex({ tex: resumeDocument.tex });
 
       if (!outcome.ok || !outcome.pdf) {
         setPhase({
@@ -162,7 +196,7 @@ export function CompilePanel({ title, tex, themeName }: { title: string; tex: st
         message: `The engine download failed: ${error instanceof Error ? error.message : String(error)} Nothing was stored; the download restarts from the beginning.`,
       });
     }
-  }, [tex]);
+  }, [blocked, resumeDocument.tex]);
 
   function acceptConsent() {
     grantConsent(localStorage, engineAssetTotalBytes);
@@ -185,165 +219,210 @@ export function CompilePanel({ title, tex, themeName }: { title: string; tex: st
   const pdfName = texFileName(title).replace(/\.tex$/, ".pdf");
 
   return (
-    <section className="flex flex-col gap-4 rounded-lg border border-border/60 p-4" aria-labelledby="compile-heading">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium" id="compile-heading">
+    <Card aria-labelledby="compile-heading">
+      <CardHeader>
+        <h2 className="font-heading text-base leading-normal font-medium" id="compile-heading">
           PDF
         </h2>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Compiling runs in a background worker on this device, with the {themeName} theme and the same generated LaTeX
-          shown above. Nothing is uploaded.
-        </p>
-      </div>
+        <CardDescription>
+          {resumeDocument.source === "manual"
+            ? "Compiling runs in a background worker on this device, from the hand-edited LaTeX saved with this resume — the same text its .tex export writes. Nothing is uploaded."
+            : `Compiling runs in a background worker on this device, with the ${themeName} theme, from the same generated LaTeX shown above. Nothing is uploaded.`}
+        </CardDescription>
+      </CardHeader>
 
-      {phase.kind === "checking" ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          Checking the browser cache for the TeX engine.
-        </p>
-      ) : null}
-
-      {phase.kind === "consent" ? (
-        <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/40 p-3">
-          <h3 className="text-sm font-medium">Download the TeX engine first</h3>
-          <p className="text-sm leading-relaxed">
-            PDF output needs a LaTeX engine stored in this browser:{" "}
-            <span className="font-medium">{formatBytes(engineAssetTotalBytes)}</span>, downloaded once and reused for
-            every later compile. Nothing has been downloaded yet.
-          </p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            That is a real cost on a metered or mobile connection — waiting for Wi-Fi is a reasonable choice. You can
-            keep editing and download the .tex instead; no download happens without this button.
-          </p>
-          <div>
-            <Button className="h-11" onClick={acceptConsent} type="button">
-              Download {formatBytes(engineAssetTotalBytes)} and compile
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {phase.kind === "downloading" ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm" role="status">
-            {phase.progress
-              ? `Downloading the TeX engine: ${formatBytes(phase.progress.loadedBytes)} of ${formatBytes(
-                  phase.progress.totalBytes,
-                )} (${phase.progress.asset})`
-              : "Starting the TeX engine download…"}
-          </p>
-          <progress
-            className="h-2 w-full"
-            max={phase.progress?.totalBytes ?? engineAssetTotalBytes}
-            value={phase.progress?.loadedBytes ?? 0}
-          />
-        </div>
-      ) : null}
-
-      {phase.kind === "compiling" ? (
-        <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
-          <Loader2 aria-hidden className="size-4 animate-spin" />
-          Compiling with XeLaTeX in a background worker. The first run builds the engine&apos;s filesystem and takes
-          longer.
-        </p>
-      ) : null}
-
-      {phase.kind === "assets-absent" ? (
-        <div className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3" role="alert">
-          <h3 className="text-sm font-medium">The TeX engine files are not on this server</h3>
-          <p className="text-sm leading-relaxed">
-            They are gitignored and fetched at build time, so a fresh checkout does not have them. Run{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">npm run fetch:tex</code> and reload. The
-            file that failed was <span className="font-mono text-xs">{phase.asset}</span>.
-          </p>
-        </div>
-      ) : null}
-
-      {phase.kind === "download-failed" ? (
-        <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3" role="alert">
-          <p className="text-sm leading-relaxed">{phase.message}</p>
-          <div>
-            <Button className="h-11" onClick={() => void compile()} type="button" variant="outline">
-              <RefreshCw aria-hidden />
-              Try the download again
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {phase.kind === "failed" ? (
-        <div className="flex flex-col gap-3" role="alert">
-          <div className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-            <p className="flex items-start gap-2 text-sm leading-relaxed">
-              <FileWarning aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {phase.message}
-            </p>
-            {phase.diagnostics.errors.length > 1 ? (
+      <CardContent>
+        {blocked ? (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {problems.length === 1 ? "One problem to fix first" : `${problems.length} problems to fix first`}
+            </AlertTitle>
+            <AlertDescription>
               <ul className="list-disc pl-5 text-xs leading-relaxed">
-                {phase.diagnostics.errors.slice(1).map((error) => (
-                  <li key={error.message}>{error.message}</li>
+                {problems.map((problem) => (
+                  <li key={`${problem.line}-${problem.column}-${problem.kind}`}>
+                    Line {problem.line}: {problem.message}
+                  </li>
                 ))}
               </ul>
-            ) : null}
-            {phase.diagnostics.warnings.length > 0 ? (
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                The engine also logged {phase.diagnostics.warnings.length} warning
-                {phase.diagnostics.warnings.length === 1 ? "" : "s"}; the first is{" "}
-                <span className="font-mono">{phase.diagnostics.warnings[0].message}</span>.
+              <p className="mt-2 text-xs leading-relaxed">
+                The TeX engine has not been started: it reads a document from the top and stops at the first of these,
+                and the line it stops on is rarely the one that caused it.
               </p>
-            ) : null}
-            <details className="text-xs">
-              <summary className="cursor-pointer py-1">Engine output ({phase.log.split("\n").length} lines)</summary>
-              <pre className="mt-2 max-h-80 min-w-0 overflow-auto rounded border border-border/60 bg-muted p-2 leading-relaxed">
-                <code>{phase.log || "(the engine printed nothing)"}</code>
-              </pre>
-            </details>
-            <div>
-              <Button className="h-11" onClick={() => void compile()} type="button" variant="outline">
-                <RefreshCw aria-hidden />
-                Compile again
-              </Button>
-            </div>
-          </div>
-          {lastPdf ? <p className="text-xs text-muted-foreground">The last PDF that compiled is below.</p> : null}
-        </div>
-      ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      {phase.kind === "idle" ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button className="h-11" onClick={() => void compile()} type="button">
-            Compile PDF
-          </Button>
-          {lastPdf ? (
-            <a className={cn(buttonVariants({ variant: "outline" }), "h-11")} download={pdfName} href={lastPdf.url}>
-              <Download aria-hidden />
-              Download PDF
-            </a>
-          ) : null}
-        </div>
-      ) : null}
-
-      {lastPdf ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground">
-            {lastPdf.bytes.toLocaleString()} bytes, compiled {new Date(lastPdf.compiledAt).toLocaleTimeString()}.
+        {phase.kind === "checking" ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            Checking the browser cache for the TeX engine.
           </p>
-          <iframe
-            className="h-[26rem] w-full rounded-md border border-border/60 bg-white"
-            src={lastPdf.url}
-            title={`Compiled PDF: ${title}`}
-          />
-        </div>
-      ) : null}
+        ) : null}
 
-      {phase.kind !== "checking" && phase.kind !== "consent" ? (
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          {consentGranted
-            ? "Engine download consented on this device."
-            : "No engine download has been consented to."}
-        </p>
-      ) : null}
+        {phase.kind === "consent" ? (
+          <Alert>
+            <AlertTitle>Download the TeX engine first</AlertTitle>
+            <AlertDescription>
+              <p>
+                PDF output needs a LaTeX engine stored in this browser:{" "}
+                <span className="font-medium">{formatBytes(engineAssetTotalBytes)}</span>, downloaded once and reused
+                for every later compile. Nothing has been downloaded yet.
+              </p>
+              <p>
+                That is a real cost on a metered or mobile connection — waiting for Wi-Fi is a reasonable choice. You
+                can keep editing and download the .tex instead; no download happens without this button.
+              </p>
+              <div className="mt-3">
+                <Button className="h-11" disabled={blocked} onClick={acceptConsent} type="button">
+                  Download {formatBytes(engineAssetTotalBytes)} and compile
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      <EngineCacheCard onCleared={() => void refreshGate()} refreshToken={cacheToken} />
-    </section>
+        {phase.kind === "downloading" ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm" role="status">
+              {phase.progress
+                ? `Downloading the TeX engine: ${formatBytes(phase.progress.loadedBytes)} of ${formatBytes(
+                    phase.progress.totalBytes,
+                  )} (${phase.progress.asset})`
+                : "Starting the TeX engine download…"}
+            </p>
+            <progress
+              className="h-2 w-full"
+              max={phase.progress?.totalBytes ?? engineAssetTotalBytes}
+              value={phase.progress?.loadedBytes ?? 0}
+            />
+          </div>
+        ) : null}
+
+        {phase.kind === "compiling" ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+            <Loader2 aria-hidden className="size-4 animate-spin" />
+            Compiling with XeLaTeX in a background worker. The first run builds the engine&apos;s filesystem and takes
+            longer.
+          </p>
+        ) : null}
+
+        {phase.kind === "assets-absent" ? (
+          <Alert variant="destructive">
+            <AlertTitle>The TeX engine files are not on this server</AlertTitle>
+            <AlertDescription>
+              They are gitignored and fetched at build time, so a fresh checkout does not have them. Run{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">npm run fetch:tex</code> and reload. The
+              file that failed was <span className="font-mono text-xs">{phase.asset}</span>.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {phase.kind === "download-failed" ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <p>{phase.message}</p>
+              <div className="mt-3">
+                <Button
+                  className="h-11"
+                  disabled={blocked}
+                  onClick={() => void compile()}
+                  type="button"
+                  variant="outline"
+                >
+                  <RefreshCw aria-hidden />
+                  Try the download again
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {phase.kind === "failed" ? (
+          <div className="flex flex-col gap-3">
+            <Alert variant="destructive">
+              <FileWarning aria-hidden />
+              <AlertTitle>{phase.message}</AlertTitle>
+              <AlertDescription>
+                {phase.diagnostics.errors.length > 1 ? (
+                  <ul className="list-disc pl-5 text-xs leading-relaxed">
+                    {phase.diagnostics.errors.slice(1).map((error) => (
+                      <li key={error.message}>{error.message}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {phase.diagnostics.warnings.length > 0 ? (
+                  <p className="text-xs leading-relaxed">
+                    The engine also logged {phase.diagnostics.warnings.length} warning
+                    {phase.diagnostics.warnings.length === 1 ? "" : "s"}; the first is{" "}
+                    <span className="font-mono">{phase.diagnostics.warnings[0].message}</span>.
+                  </p>
+                ) : null}
+                <details className="text-xs">
+                  <summary className="cursor-pointer py-1">
+                    Engine output ({phase.log.split("\n").length} lines)
+                  </summary>
+                  <pre className="mt-2 max-h-80 min-w-0 overflow-auto rounded border border-border/60 bg-muted p-2 leading-relaxed">
+                    <code>{phase.log || "(the engine printed nothing)"}</code>
+                  </pre>
+                </details>
+                <div className="mt-3">
+                  <Button
+                    className="h-11"
+                    disabled={blocked}
+                    onClick={() => void compile()}
+                    type="button"
+                    variant="outline"
+                  >
+                    <RefreshCw aria-hidden />
+                    Compile again
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+            {lastPdf ? <p className="text-xs text-muted-foreground">The last PDF that compiled is below.</p> : null}
+          </div>
+        ) : null}
+
+        {phase.kind === "idle" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button className="h-11" disabled={blocked} onClick={() => void compile()} type="button">
+              Compile PDF
+            </Button>
+            {lastPdf ? (
+              <a className={cn(buttonVariants({ variant: "outline" }), "h-11")} download={pdfName} href={lastPdf.url}>
+                <Download aria-hidden />
+                Download PDF
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+
+        {lastPdf ? (
+          <>
+            <Separator />
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">
+                {lastPdf.bytes.toLocaleString()} bytes, compiled {new Date(lastPdf.compiledAt).toLocaleTimeString()}.
+              </p>
+              <iframe
+                className="h-[26rem] w-full rounded-md border border-border/60 bg-white"
+                src={lastPdf.url}
+                title={`Compiled PDF: ${title}`}
+              />
+            </div>
+          </>
+        ) : null}
+
+        {phase.kind !== "checking" && phase.kind !== "consent" ? (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {consentGranted
+              ? "Engine download consented on this device."
+              : "No engine download has been consented to."}
+          </p>
+        ) : null}
+
+        <EngineCacheCard onCleared={() => void refreshGate()} refreshToken={cacheToken} />
+      </CardContent>
+    </Card>
   );
 }

@@ -10,13 +10,18 @@ import { clearDraft, draftKeyFor, preferNewerRecord, readDraft, writeDraft } fro
 import { normalizeResume } from "@/components/editor/resume-ops";
 import { SectionsEditor } from "@/components/editor/sections-editor";
 import { saveDebounceMs, useDebouncedSave, type SaveStatus } from "@/components/editor/use-debounced-save";
-import { SliceNotice } from "@/components/slice-notice";
+import { LatexSourceEditor } from "@/components/latex-editor/latex-source-editor";
+import { ManualModeBadge } from "@/components/latex-editor/manual-mode-badge";
+import { RegenerateConfirm } from "@/components/latex-editor/regenerate-confirm";
 import { ThemePicker } from "@/components/theme/theme-picker";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { deriveResumeTitle, type Resume } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
 import type { ResumeRecord } from "@/lib/storage/types";
 import { resolveTheme, themes } from "@/lib/themes";
+import { applyHandEdit, documentSource, regenerateFromData } from "@/lib/tex/document";
 import { renderResumeForThemeId, texFileName } from "@/lib/tex/generate";
 
 type EditorState =
@@ -45,6 +50,8 @@ const saveCopy: Record<SaveStatus, string> = {
  */
 export function ResumeEditor({ resumeId }: { resumeId: string }) {
   const [state, setState] = useState<EditorState>({ status: "loading" });
+  /** Bumped when the document is replaced rather than edited, to reset the editor's undo history. */
+  const [sourceRevision, setSourceRevision] = useState(0);
   // The newest record, so an edit never has to read the value a render captured.
   const latest = useRef<ResumeRecord | null>(null);
 
@@ -70,16 +77,27 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
             return;
           }
 
-          const record = preferNewerRecord(stored, draft, resumeId);
-          latest.current = record;
-          setState(record ? { status: "ready", record } : { status: "missing" });
-          clearDraft(key);
+          // The record on screen is normalised, and so is the record the writer
+          // stores: if the two could differ, the LaTeX shown here and the document
+          // the exports panel writes would be two different documents.
+          const loaded = preferNewerRecord(stored, draft, resumeId);
+          if (loaded === null) {
+            latest.current = null;
+            setState({ status: "missing" });
+          } else {
+            const record: ResumeRecord = { ...loaded, resume: normalizeResume(loaded.resume) };
+            latest.current = record;
+            setState({ status: "ready", record });
 
-          if (record !== null && record !== stored) {
-            // Recovered: put it back through the normal path so storage and the
-            // screen agree again without a second edit.
-            void getStorage().putResume({ ...record, resume: normalizeResume(record.resume) });
+            if (loaded !== stored || JSON.stringify(record.resume) !== JSON.stringify(loaded.resume)) {
+              // Recovered from the journal, or stored before the writer normalised:
+              // put it back through the normal path so storage and the screen agree
+              // again without a second edit.
+              void getStorage().putResume(record);
+            }
           }
+
+          clearDraft(key);
         },
         () => {
           if (!cancelled) {
@@ -117,15 +135,17 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
     };
   }, [resumeId]);
 
-  /** Puts a record on screen and queues the normalised copy for storage. */
+  /** Puts a record on screen and queues the same record for storage. */
   const writeRecord = useCallback(
     (next: ResumeRecord) => {
-      // The title is derived, so it is refreshed here rather than left to whoever
-      // built the record: the library list reads it, and the journal copies it.
-      const titled: ResumeRecord = { ...next, title: deriveResumeTitle(next.resume) };
+      // The title is derived, and the resume is normalised, so the record on screen
+      // is the record in storage — not a display copy of it. The LaTeX preview, the
+      // compile panel and the export all then read one document.
+      const normalized: ResumeRecord = { ...next, resume: normalizeResume(next.resume) };
+      const titled: ResumeRecord = { ...normalized, title: deriveResumeTitle(normalized.resume) };
       latest.current = titled;
       setState({ status: "ready", record: titled });
-      save({ ...titled, resume: normalizeResume(titled.resume) });
+      save(titled);
     },
     [save],
   );
@@ -151,6 +171,49 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
     },
     [writeRecord],
   );
+
+  /**
+   * A hand edit of the source.
+   *
+   * `applyHandEdit` decides whether this is an edit at all: text that matches the
+   * document of record is not one, so opening, scrolling or focusing the editor
+   * can never flip the mode, and the first text that differs takes the resume off
+   * the generated path and becomes its document. The write then goes through the
+   * same debounced queue as a field edit — flushed when the tab is hidden, on
+   * `pagehide` and on unmount, and reported through the save status if it fails.
+   */
+  const editSource = useCallback(
+    (editedTex: string) => {
+      const current = latest.current;
+      if (current === null) {
+        return;
+      }
+
+      const next = applyHandEdit(current, editedTex, new Date().toISOString());
+      if (next !== null) {
+        writeRecord(next);
+      }
+    },
+    [writeRecord],
+  );
+
+  const regenerate = useCallback(() => {
+    const current = latest.current;
+    if (current === null) {
+      return;
+    }
+
+    const next = regenerateFromData(current, new Date().toISOString());
+    if (next === current) {
+      return;
+    }
+
+    writeRecord(next);
+    // The editor's undo history still holds the discarded hand edits, so the
+    // document is replaced along with it: regenerating cannot be undone back into
+    // manual mode, which needs a second edit.
+    setSourceRevision((revision) => revision + 1);
+  }, [writeRecord]);
 
   if (state.status === "loading") {
     return (
@@ -190,13 +253,18 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
   // reach it, so the fields are shown read-only with the reason next to them.
   const editable = record.mode !== "manual";
   const themeName = resolveTheme(record.themeId).name;
-  // Empty optional fields are normalised on the way into the generator as well as
-  // on the way to storage, so the preview shows the document the data produces.
-  const report = renderResumeForThemeId(normalizeResume(record.resume), record.themeId);
+  // One rule decides which text is the document, and the compile panel is handed
+  // the same record so it resolves to the same text.
+  const resumeDocument = documentSource(record);
+  // The dropped-character warning describes the generated document, which is not
+  // the document on screen in manual mode.
+  const droppedCharacters = editable
+    ? renderResumeForThemeId(record.resume, record.themeId).droppedCharacters
+    : [];
   const title = deriveResumeTitle(record.resume);
 
   function downloadTex() {
-    const url = URL.createObjectURL(new Blob([report.tex], { type: "application/x-tex" }));
+    const url = URL.createObjectURL(new Blob([resumeDocument.tex], { type: "application/x-tex" }));
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = texFileName(title);
@@ -213,32 +281,33 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
           </Link>{" "}
           / <span className="font-mono">{record.id}</span>
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {editable ? null : <ManualModeBadge />}
+        </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Edit the fields and the structure; the LaTeX and the PDF follow your data. Everything stays in this browser.
+          {editable
+            ? "Edit the fields and the structure; the LaTeX and the PDF follow your data. Everything stays in this browser."
+            : "The LaTeX below is this resume's document; the fields and the theme no longer produce it. Everything stays in this browser."}
         </p>
       </div>
 
       {editable ? null : (
-        <section
-          aria-labelledby="manual-mode-heading"
-          className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/40 p-4"
-        >
-          <h2 className="text-sm font-semibold" id="manual-mode-heading">
-            Hand-edited LaTeX: field editing is off
-          </h2>
-          <p className="text-sm leading-relaxed">
-            This resume is in manual mode: its document was edited as LaTeX by hand, so it is no longer generated from
-            the fields below. Changing a field would not change your document and would leave the two out of step, so
-            the fields are read-only here. The saved LaTeX itself is untouched.
-          </p>
-        </section>
-      )}
-
-      {editable ? null : (
-        <SliceNotice issue={8}>
-          The action that regenerates the document from these fields is not built yet.
-        </SliceNotice>
+        <Alert>
+          <AlertTitle>Hand-edited LaTeX: field editing is off</AlertTitle>
+          <AlertDescription>
+            <p>
+              This resume is in manual mode: its document was edited as LaTeX by hand, so it is no longer generated
+              from the fields below. Changing a field would not change your document and would leave the two out of
+              step, so the fields are read-only here. The saved LaTeX itself is untouched.
+            </p>
+            <p>
+              The only way back is to regenerate the document from these fields. That discards the LaTeX you edited by
+              hand, which this browser cannot undo.
+            </p>
+            <RegenerateConfirm onConfirm={regenerate} />
+          </AlertDescription>
+        </Alert>
       )}
 
       <ThemePicker onSelect={selectTheme} selectedId={record.themeId} themes={themes} />
@@ -248,10 +317,13 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
           {saveCopy[status]}
         </p>
         {status === "error" ? (
-          <p className="text-sm text-destructive" role="alert">
-            This browser refused to store the change, so a reload may show the previous version. Nothing was lost on
-            screen; check that local storage is available and try the edit again.
-          </p>
+          <Alert variant="destructive">
+            <AlertTitle>The last change was not saved</AlertTitle>
+            <AlertDescription>
+              This browser refused to store the change, so a reload may show the previous version. Nothing was lost on
+              screen; check that local storage is available and try the edit again.
+            </AlertDescription>
+          </Alert>
         ) : null}
       </div>
 
@@ -268,45 +340,53 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         </div>
       </fieldset>
 
-      <section className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-medium">Generated LaTeX</h2>
-          <Button className="h-11 sm:h-9" onClick={downloadTex} size="sm" variant="outline">
-            <Download aria-hidden />
-            Download .tex
-          </Button>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex flex-wrap items-center gap-2">
+            <h2 className="font-heading text-base leading-normal font-medium">LaTeX source</h2>
+            {editable ? null : <ManualModeBadge />}
+          </CardTitle>
+          <CardAction>
+            <Button className="h-11 sm:h-9" onClick={downloadTex} size="sm" variant="outline">
+              <Download aria-hidden />
+              Download .tex
+            </Button>
+          </CardAction>
+          <CardDescription>
+            {resumeDocument.tex.split("\n").length} lines, {(resumeDocument.tex.length / 1024).toFixed(1)} kB,{" "}
+            {editable
+              ? `generated from your data with the ${themeName} theme.`
+              : "the hand-edited document saved with this resume."}
+          </CardDescription>
+        </CardHeader>
 
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          {report.tex.split("\n").length} lines, {(report.tex.length / 1024).toFixed(1)} kB, rendered with the{" "}
-          {themeName} theme.
-          {record.mode === "manual" ? (
-            <>
-              {" "}
-              This resume is in manual mode: the LaTeX below is generated from your data, not from the saved manual
-              LaTeX.
-            </>
-          ) : null}
-        </p>
-
-        {report.droppedCharacters.length > 0 ? (
-          <p className="text-xs leading-relaxed text-destructive">
-            {report.droppedCharacters.length} character
-            {report.droppedCharacters.length === 1 ? "" : "s"} could not be typeset by the bundled engine and were left
-            out: <span className="font-mono">{report.droppedCharacters.join(" ")}</span>
+        <CardContent>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Editing this text by hand takes the resume off the generated path: the document becomes yours, the fields
+            become read-only, and nothing rewrites it until you regenerate it from your data.
           </p>
-        ) : null}
 
-        <pre
-          aria-label="Generated LaTeX"
-          className="max-h-96 min-w-0 overflow-auto rounded-lg border border-border/60 bg-muted p-3 text-xs leading-relaxed"
-          tabIndex={0}
-        >
-          <code>{report.tex}</code>
-        </pre>
-      </section>
+          {droppedCharacters.length > 0 ? (
+            <Alert variant="destructive">
+              <AlertTitle>The engine cannot typeset everything in this resume</AlertTitle>
+              <AlertDescription>
+                {droppedCharacters.length} character
+                {droppedCharacters.length === 1 ? "" : "s"} were left out:{" "}
+                <span className="font-mono">{droppedCharacters.join(" ")}</span>
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
-      <CompilePanel tex={report.tex} themeName={themeName} title={title} />
+          <LatexSourceEditor
+            label="LaTeX source"
+            onChange={editSource}
+            revision={sourceRevision}
+            value={resumeDocument.tex}
+          />
+        </CardContent>
+      </Card>
+
+      <CompilePanel record={record} themeName={themeName} title={title} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Trash } from "lucide-react";
 
+import { ManualModeBadge } from "@/components/latex-editor/manual-mode-badge";
 import { DeleteResumeConfirm } from "@/components/resume/delete-resume-confirm";
 import { Button } from "@/components/ui/button";
 import { formatUpdatedAt, sectionLabels, sectionsWithContent } from "@/lib/resume/library";
@@ -37,12 +38,15 @@ export function ResumeList({
           <li className="p-4" key={record.id}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <Link
-                  className="font-medium underline-offset-4 hover:underline"
-                  href={`/resumes/${record.id}/edit`}
-                >
-                  {record.title}
-                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    className="font-medium underline-offset-4 hover:underline"
+                    href={`/resumes/${record.id}/edit`}
+                  >
+                    {record.title}
+                  </Link>
+                  {record.mode === "manual" ? <ManualModeBadge /> : null}
+                </div>
                 <p className="mt-1 text-xs text-muted-foreground">Updated {formatUpdatedAt(record.updatedAt)}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   {sections.length > 0
