@@ -1,3 +1,4 @@
+import { AiFailureError, isAiFailureKind } from "@/lib/ai/failures";
 import type { AiMode } from "@/lib/env";
 import type { Jd } from "@/lib/jd/schema";
 import type { MatchCriterion } from "@/lib/match/types";
@@ -13,6 +14,14 @@ import type { Resume } from "@/lib/resume/schema";
  * decides whether a report already exists for that identity before calling.
  */
 
+/**
+ * The browser gives up on an analysis after this long and reports a timeout,
+ * rather than leaving the page waiting on a server that stopped answering. It
+ * sits past the seam's own 30 s budget so the server's terminal answer normally
+ * wins; this is the backstop for when it does not arrive at all.
+ */
+export const evidenceDeadlineMs = 45_000;
+
 export interface AnalyzeRequestBody {
   resume: Resume;
   jd: Jd;
@@ -27,7 +36,13 @@ export interface AnalyzeSuccess {
 }
 
 export interface AnalyzeFailure {
-  error: { reason: string; message: string };
+  error: {
+    reason: string;
+    message: string;
+    /** One of `aiFailureKinds` when the route classified the failure. */
+    kind?: string;
+    retryAfterSeconds?: number | null;
+  };
 }
 
 export type AnalyzeResponse = AnalyzeSuccess | AnalyzeFailure;
@@ -52,6 +67,29 @@ function messageFrom(body: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * The route's error body as a typed failure. A body the route did not classify
+ * keeps its message and becomes `unknown`, which the page renders generically.
+ */
+function failureFrom(body: unknown, fallback: string): AiFailureError {
+  const message = messageFrom(body, fallback);
+
+  if (typeof body !== "object" || body === null || !("error" in body)) {
+    return new AiFailureError("unknown", message);
+  }
+
+  const { error } = body;
+  if (typeof error !== "object" || error === null) {
+    return new AiFailureError("unknown", message);
+  }
+
+  const kind = "kind" in error && isAiFailureKind(error.kind) ? error.kind : "unknown";
+  const retryAfterSeconds =
+    "retryAfterSeconds" in error && typeof error.retryAfterSeconds === "number" ? error.retryAfterSeconds : null;
+
+  return new AiFailureError(kind, message, { retryAfterSeconds });
+}
+
 /** Which model and mode an analysis would run under; needed before the cache check. */
 export async function fetchModelIdentity(): Promise<ModelIdentity> {
   const response = await fetch("/api/analyze", { method: "GET" });
@@ -74,11 +112,13 @@ export async function requestEvidence(input: AnalyzeRequestBody): Promise<Analyz
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
+    // A hung request must end in a message, not in a spinner that never stops.
+    signal: AbortSignal.timeout(evidenceDeadlineMs),
   });
 
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(messageFrom(body, `Analysis failed (HTTP ${response.status}).`));
+    throw failureFrom(body, `Analysis failed (HTTP ${response.status}).`);
   }
 
   const parsed = body as Partial<AnalyzeSuccess> | null;

@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { AiFailureError, type AiFailureKind } from "@/lib/ai/failures";
 import { MissingFixtureError } from "@/lib/ai/run";
 import { getEnv } from "@/lib/env";
 import { jdSchema } from "@/lib/jd/schema";
 import { isInvalidModelOutputError } from "@/lib/jd/structure";
 import { analyzeMatchEvidence } from "@/lib/match/analyze";
+import type { AnalyzeFailure } from "@/lib/match/api";
 import { resumeSchema } from "@/lib/resume/schema";
 
 export const dynamic = "force-dynamic";
@@ -29,8 +31,59 @@ const requestSchema = z.object({
   themeId: z.string().nullable().default(null),
 });
 
-function errorResponse(status: number, reason: string, message: string) {
-  return NextResponse.json({ error: { reason, message } }, { status });
+/**
+ * Status and copy per failure kind, so the page can tell the four cases apart
+ * and offer the next step that fits each one. The `reason` is the kind itself:
+ * one vocabulary from the provider call to the notice the user reads.
+ */
+const failureResponses: Record<AiFailureKind, { status: number; message: string }> = {
+  quota: {
+    status: 429,
+    message:
+      "The model provider refused the request because this key's request allowance is used up. The allowance is shared and resets on the provider's side.",
+  },
+  provider: {
+    status: 503,
+    message:
+      "No model provider would take this request, including the fallback models configured for this server. Nothing about the resume or posting caused it.",
+  },
+  offline: {
+    status: 504,
+    message: "The model provider could not be reached from this server, so no analysis was run.",
+  },
+  timeout: {
+    status: 504,
+    message: "The model did not answer within the time this server allows for one analysis.",
+  },
+  config: {
+    status: 500,
+    message: "The model provider rejected this server's API key, so no analysis was run.",
+  },
+  unknown: {
+    status: 502,
+    message: "The match analysis could not be completed.",
+  },
+};
+
+/** The wire answer for a classified model failure: status, reason, copy, and the wait if any. */
+export function failureResponse(error: AiFailureError): { status: number; body: AnalyzeFailure } {
+  const { status, message } = failureResponses[error.kind];
+
+  return {
+    status,
+    body: {
+      error: {
+        reason: error.kind,
+        message,
+        kind: error.kind,
+        retryAfterSeconds: error.retryAfterSeconds,
+      },
+    },
+  };
+}
+
+function errorResponse(status: number, reason: string, message: string, extra: Record<string, unknown> = {}) {
+  return NextResponse.json({ error: { reason, message, ...extra } }, { status });
 }
 
 export async function GET() {
@@ -77,6 +130,11 @@ export async function POST(request: Request) {
         "invalid-model-output",
         "The model returned criteria that did not match the expected shape, so nothing was scored.",
       );
+    }
+
+    if (error instanceof AiFailureError) {
+      const { status, body } = failureResponse(error);
+      return NextResponse.json(body, { status });
     }
 
     return errorResponse(502, "model-error", "The match analysis could not be completed.");

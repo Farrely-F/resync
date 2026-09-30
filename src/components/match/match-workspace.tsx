@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { AiFailureNotice } from "@/components/ai/failure-notice";
 import { JdSourceForm, type JdInputMode } from "@/components/jd/jd-source-form";
 import { JdSummary } from "@/components/jd/jd-summary";
 import { ResumePicker } from "@/components/jd/resume-picker";
 import { Button } from "@/components/ui/button";
+import { toRequestFailure, type AiFailureError } from "@/lib/ai/failures";
 import { browserUsageStore, readModelRequests, recordModelRequest, type ModelRequestUsage } from "@/lib/ai/usage";
 import { isIntakeError, jdRecordFromIntake, type JdIntakeResponse, type JdIntakeSuccess } from "@/lib/jd/api";
 import { classifyHost, type JobHints } from "@/lib/jd/hosts";
@@ -26,6 +28,15 @@ import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
  */
 
 const jdQueryKey = "jd";
+
+/**
+ * How the analyse flow ends when it does not produce a report. A transport
+ * failure keeps its class so the notice can name it; an analysis that returned
+ * nothing to score is a different thing and says so.
+ */
+type AnalyzeError =
+  | { kind: "failure"; failure: AiFailureError }
+  | { kind: "unanalysable"; message: string };
 
 function viewHints(record: JdRecord): JobHints {
   return { title: record.title, company: record.company, location: record.structured.location };
@@ -130,7 +141,7 @@ export function MatchWorkspace() {
   const [intakeError, setIntakeError] = useState<{ reason: string; message: string } | null>(null);
 
   const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<AnalyzeError | null>(null);
 
   const applyJds = useCallback((records: JdRecord[], preferredId: string | null) => {
     setJds(records);
@@ -297,10 +308,12 @@ export function MatchWorkspace() {
     } catch (error) {
       setAnalyzeError(
         error instanceof UnanalysableMatchError
-          ? "The analysis returned no criteria for this pair, so there was nothing to score and no report was stored."
-          : error instanceof Error
-            ? error.message
-            : "The analysis could not be completed.",
+          ? {
+              kind: "unanalysable",
+              message:
+                "The analysis returned no criteria for this pair, so there was nothing to score and no report was stored.",
+            }
+          : { kind: "failure", failure: toRequestFailure(error) },
       );
     } finally {
       setAnalyzing(false);
@@ -443,11 +456,19 @@ export function MatchWorkspace() {
         {!loading && !selectedResume && (resumes?.length ?? 0) > 0 ? (
           <p className="text-sm text-muted-foreground">Pick a resume to analyse against.</p>
         ) : null}
-        {analyzeError ? (
+        {analyzeError === null ? null : analyzeError.kind === "unanalysable" ? (
           <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm" role="alert">
-            {analyzeError}
+            {analyzeError.message}
           </p>
-        ) : null}
+        ) : (
+          <AiFailureNotice
+            busy={analyzing}
+            kind={analyzeError.failure.kind}
+            message={analyzeError.failure.message}
+            onRetry={runAnalysis}
+            retryAfterSeconds={analyzeError.failure.retryAfterSeconds}
+          />
+        )}
         <p className="text-xs leading-relaxed text-muted-foreground">
           Analysing the same resume, posting, theme, model and mode again reuses the stored report and makes no model
           request. <Link className="underline underline-offset-4 hover:text-foreground" href="/settings">Settings</Link>{" "}
