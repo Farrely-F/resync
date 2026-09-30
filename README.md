@@ -137,6 +137,10 @@ mid-tour does not record it, so it can be offered again. Settings lists every to
   into the percentage from weights that live in one place, so the same evidence always gives the same number and the
   report can show the arithmetic. ATS format checks are derived from the generated document and the resume structure,
   not from the model.
+- **The seam's deadline is shared between the models that could still answer.** One stalled provider used to spend the
+  whole budget, so the call timed out and the fallback was never called — the exact failure a fallback list exists for.
+  Each attempt now gets its share of what remains, and a timeout ends that attempt rather than the call; the last target
+  left gets whatever is over. Documents ask for 60 s rather than the default 30, because their answers are long.
 - **Report cache and quota**: a report is identified by the hash of its inputs (resume, posting, theme, rubric
   version, model, AI mode). Re-analysing an identical pair returns the stored report and makes no model request. The
   quota line on `/match` is a count of model requests this browser started today, kept in `localStorage`; it is not a
@@ -160,6 +164,28 @@ mid-tour does not record it, so it can be offered again. Settings lists every to
 - **Collapsed sections in the editor are a reading aid, so that state is never stored**: opening a resume never hides
   a section the reader closed last time. Hiding a section is a different action, and it is the one that takes the
   section out of the generated document while keeping its entries.
+- **Documents written from a match are one pipeline with three specs.** A cover letter, an outreach message and
+  interview prep are the same shape of work — the resume, the posting and the report's verdicts in, text out — so they
+  share one route (`POST /api/documents`), one client hook and one spec per kind (`src/lib/documents/*.ts`) holding the
+  instructions, the strict schema, the prompt and the recorded fixture. Adding a kind is a spec plus a line in the
+  registry. The report is the input on purpose: a letter written from the posting repeats the posting, and one written
+  from the report can answer the gaps the analysis found. Answers are stored in this browser (the `documents` store) and
+  are deleted with the report they answer, which the confirmation says.
+- **`/guide` teaches the flow by doing it.** Each step is a real action — the sample resume goes through the same parse
+  path as an upload, the sample posting is copied to the clipboard — and a step is done when the underlying fact is true
+  (a resume exists) rather than when a box is ticked. Steps the page cannot check say so, and the marks it does keep are
+  in `localStorage`, versioned, with an unreadable value counting as nothing done.
+- **The editor has two surfaces, one at a time.** The fields and the LaTeX are two views of one document; mounting both
+  meant every keystroke re-rendered both, including a CodeMirror view nobody was looking at. They are tabs now, opening
+  on whichever holds the document. The fields stay editable in manual mode: a field edit regenerates the document from
+  the data, which replaces the hand-written LaTeX, so it asks first and names the cost. That is the honest half of
+  two-way sync — fields to document is exact, document to fields is not, because hand-written LaTeX can say things the
+  data model cannot hold.
+- **The source check masks verbatim arguments before parsing.** `\url` sets its own catcodes, so a `%` inside it is a
+  literal percent sign; the parser used here reads it as a comment, swallows the argument's closing brace and reports an
+  unclosed brace. That is not hypothetical: `latexUrl` percent-encodes for `\url`, so any resume whose link contains a
+  quote, a space or a literal percent was refused a preview for a document that compiles. The bodies are masked with
+  filler of exactly the same length, so every other problem keeps its line and column.
 - **Live preview compiles the document of record in the browser**, on a pause after typing rather than per keystroke,
   and only when the engine has already been consented to and cached — a field change can never start a 127 MB download
   or raise a consent prompt. There is one compile state behind the preview and the download, so the two cannot
