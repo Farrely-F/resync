@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 
 import { TourLauncher } from "@/components/tour/tour-launcher";
 import { MatchWorkspace } from "@/components/match/match-workspace";
+import { privateMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Match" };
+export const metadata: Metadata = privateMetadata("Match", "Match a stored resume against a job posting.");
 
 export default function MatchPage() {
   return (

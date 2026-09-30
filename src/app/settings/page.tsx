@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 
 import { TourLauncher } from "@/components/tour/tour-launcher";
 import { SettingsWorkspace } from "@/components/exports/settings-workspace";
+import { privateMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Settings" };
+export const metadata: Metadata = privateMetadata("Settings", "What resync stores on this device, and how to export or delete it.");
 
 export default function SettingsPage() {
   return (

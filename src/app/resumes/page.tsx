@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 
 import { TourLauncher } from "@/components/tour/tour-launcher";
 import { ResumeLibrary } from "@/components/resume/resume-library";
+import { privateMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Resumes" };
+export const metadata: Metadata = privateMetadata("Resumes", "Your resume library. Everything here is stored in this browser.");
 
 export default function ResumesPage() {
   return (

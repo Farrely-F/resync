@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
 
+import { publicMetadata } from "@/lib/seo";
 import { GuideWorkspace } from "@/components/guide/guide-workspace";
 
-export const metadata: Metadata = { title: "Guide" };
+const description =
+  "Walk the whole flow on a sample: add a resume, read a posting, run the match, open the report and write the documents. Each step reports what actually happened.";
+
+export const metadata: Metadata = {
+  title: "Guide",
+  description,
+  ...publicMetadata({ path: "/guide", title: "Guide", ogTitle: "Guide · resync", description }),
+};
 
 /**
  * The guide: the app's primary flow, walked through rather than described.

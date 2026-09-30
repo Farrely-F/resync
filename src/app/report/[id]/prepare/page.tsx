@@ -4,8 +4,9 @@ import Link from "next/link";
 import { CoverLetterPanel } from "@/components/documents/cover-letter-panel";
 import { InterviewPrepPanel } from "@/components/documents/interview-prep-panel";
 import { OutreachPanel } from "@/components/documents/outreach-panel";
+import { privateMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Prepare" };
+export const metadata: Metadata = privateMetadata("Prepare", "Write a letter, a message or interview prep from a match.");
 
 /**
  * The documents a match leads to: a letter, a message, and the interview.

@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { ReportView } from "@/components/match/report-view";
 import { ReportAdjustments } from "@/components/suggestions/report-adjustments";
+import { privateMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Report" };
+export const metadata: Metadata = privateMetadata("Report", "A match report: the score and the rubric lines behind it.");
 
 export default async function ReportPage({ params }: PageProps<"/report/[id]">) {
   const { id } = await params;
