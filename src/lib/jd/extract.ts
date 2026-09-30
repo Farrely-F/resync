@@ -75,8 +75,6 @@ const minTextLength = 120;
 const browserUserAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
-const pasteHint = "Copy the posting text and paste it in instead.";
-
 const failureMessages: Record<ExtractionFailureReason, string> = {
   "invalid-url": "That is not a valid http(s) job URL.",
   "private-network": "Refusing to fetch a private or local address.",
