@@ -3,7 +3,15 @@
  *
  * AI_MODE=mock serves every AI call from a recorded fixture: no network, no API
  * key, fully deterministic. AI_MODE=live calls OpenRouter with the server-side
- * key. Outside production the default is mock so a fresh clone runs immediately.
+ * key.
+ *
+ * Mode precedence, in order:
+ *   1. an explicit AI_MODE, which always wins;
+ *   2. a present OPENROUTER_API_KEY means live — a configured key is an
+ *      unambiguous request to use it, and silently substituting fixtures for a
+ *      user's own documents is the worst possible default;
+ *   3. production without a key is live, which fails loudly at startup;
+ *   4. otherwise mock, so a fresh clone runs with no setup at all.
  */
 export const aiModes = ["mock", "live"] as const;
 
@@ -66,20 +74,25 @@ export function parseEnv(
 ): AppEnv {
   const issues: string[] = [];
 
-  const rawMode = nonEmpty(raw.AI_MODE);
-  let aiMode: AiMode;
-  if (rawMode === undefined) {
-    aiMode = nodeEnv === "production" ? "live" : "mock";
-  } else if ((aiModes as readonly string[]).includes(rawMode)) {
-    aiMode = rawMode as AiMode;
-  } else {
-    issues.push(`AI_MODE must be one of ${aiModes.join(", ")} (received ${JSON.stringify(rawMode)})`);
-    aiMode = "mock";
-  }
-
   const model = nonEmpty(raw.OPENROUTER_MODEL) ?? defaultModel;
   const fallbackModels = modelList(raw.OPENROUTER_FALLBACK_MODELS) ?? defaultFallbackModels;
   const apiKey = nonEmpty(raw.OPENROUTER_API_KEY) ?? null;
+
+  const rawMode = nonEmpty(raw.AI_MODE);
+  let aiMode: AiMode;
+  if (rawMode !== undefined) {
+    if ((aiModes as readonly string[]).includes(rawMode)) {
+      aiMode = rawMode as AiMode;
+    } else {
+      issues.push(`AI_MODE must be one of ${aiModes.join(", ")} (received ${JSON.stringify(rawMode)})`);
+      aiMode = "mock";
+    }
+  } else if (apiKey !== null || nodeEnv === "production") {
+    // A key means the operator wants real calls; fixtures are never a silent substitute.
+    aiMode = "live";
+  } else {
+    aiMode = "mock";
+  }
 
   if (aiMode === "live" && apiKey === null) {
     issues.push(
@@ -99,4 +112,34 @@ let cached: AppEnv | undefined;
 export function getEnv(): AppEnv {
   cached ??= parseEnv();
   return cached;
+}
+
+export interface AiModeSummary {
+  aiMode: AiMode;
+  model: string;
+  /** True when AI_MODE was set explicitly rather than inferred from a key. */
+  explicit: boolean;
+  hasApiKey: boolean;
+  /** False when the configuration is invalid; callers should say so rather than guess. */
+  valid: boolean;
+}
+
+/**
+ * Never throws, so a shell component can disclose the current mode even when the
+ * configuration is broken. An invalid configuration reports mock, because that
+ * is what the app will actually do once the error surfaces.
+ */
+export function summariseAiMode(
+  raw: Record<string, string | undefined> = process.env,
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+): AiModeSummary {
+  const explicit = nonEmpty(raw.AI_MODE) !== undefined;
+  const hasApiKey = nonEmpty(raw.OPENROUTER_API_KEY) !== undefined;
+
+  try {
+    const env = parseEnv(raw, nodeEnv);
+    return { aiMode: env.aiMode, model: env.model, explicit, hasApiKey, valid: true };
+  } catch {
+    return { aiMode: "mock", model: defaultModel, explicit, hasApiKey, valid: false };
+  }
 }

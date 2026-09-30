@@ -4,7 +4,9 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 import { AppShell } from "@/components/app-shell";
+import { MockModeNotice } from "@/components/ai/mock-mode-notice";
 import { SiteFooter } from "@/components/site-footer";
+import { summariseAiMode } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -37,6 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
     >
       <body className="min-h-full bg-background text-foreground">
+        <MockModeNotice summary={summariseAiMode()} />
         <AppShell>{children}</AppShell>
         <SiteFooter />
       </body>

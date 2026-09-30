@@ -34,6 +34,11 @@ Every structured model call goes through one seam (`src/lib/ai/run.ts`), which i
 calling feature provides under `AI_MODE=mock` or sent to OpenRouter under `AI_MODE=live`. Tests and local
 development never need network access or an API key.
 
+**Which mode applies**: an explicit `AI_MODE` always wins; otherwise a non-empty `OPENROUTER_API_KEY` means `live`,
+because a configured key is a request to use it; otherwise production means `live` (and fails loudly without a key);
+otherwise `mock`. Whenever the app is answering from fixtures it says so in a banner on every page — mock mode
+replaces your own resume and posting with stored samples, so it must never read as a successful parse.
+
 Two consequences worth knowing before designing anything on top of it:
 
 - `openrouter/free` is an **auto-router**: it can select a different backing model per request, so the same input

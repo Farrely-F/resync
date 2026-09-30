@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EnvError, defaultFallbackModels, defaultModel, parseEnv } from "./env";
+import { EnvError, defaultFallbackModels, defaultModel, parseEnv, summariseAiMode } from "./env";
 
 describe("parseEnv", () => {
   it("defaults to mock mode outside production, with no key required", () => {
@@ -9,6 +9,26 @@ describe("parseEnv", () => {
     expect(env.aiMode).toBe("mock");
     expect(env.apiKey).toBeNull();
     expect(env.model).toBe(defaultModel);
+  });
+
+  it("treats a configured key as a request for real calls, without AI_MODE being set", () => {
+    // The regression this guards: a key was present, AI_MODE was not, and the app
+    // answered from fixtures while the user believed their own document was parsed.
+    const env = parseEnv({ OPENROUTER_API_KEY: "sk-real" }, "development");
+
+    expect(env.aiMode).toBe("live");
+  });
+
+  it("still honours an explicit AI_MODE=mock even when a key is present", () => {
+    const env = parseEnv({ AI_MODE: "mock", OPENROUTER_API_KEY: "sk-real" }, "development");
+
+    expect(env.aiMode).toBe("mock");
+  });
+
+  it("keeps a blank key from implying live mode", () => {
+    const env = parseEnv({ OPENROUTER_API_KEY: "   " }, "development");
+
+    expect(env.aiMode).toBe("mock");
   });
 
   it("defaults to live mode in production and then demands a key", () => {
@@ -85,5 +105,47 @@ describe("parseEnv", () => {
       expect(issues).toHaveLength(1);
       expect(issues[0]).toContain("AI_MODE");
     }
+  });
+});
+
+describe("summariseAiMode", () => {
+  it("reports mock with no key, and flags that AI_MODE was not set", () => {
+    const summary = summariseAiMode({}, "development");
+
+    expect(summary).toEqual({
+      aiMode: "mock",
+      model: defaultModel,
+      explicit: false,
+      hasApiKey: false,
+      valid: true,
+    });
+  });
+
+  it("reports live and marks the mode as inferred when only a key is present", () => {
+    const summary = summariseAiMode({ OPENROUTER_API_KEY: "sk-real" }, "development");
+
+    expect(summary.aiMode).toBe("live");
+    expect(summary.explicit).toBe(false);
+    expect(summary.hasApiKey).toBe(true);
+  });
+
+  it("marks an explicit mock, so the notice can point at the actual cause", () => {
+    const summary = summariseAiMode({ AI_MODE: "mock", OPENROUTER_API_KEY: "sk-real" }, "development");
+
+    expect(summary.aiMode).toBe("mock");
+    expect(summary.explicit).toBe(true);
+  });
+
+  it("never throws on a broken configuration, and reports it as mock and invalid", () => {
+    const summary = summariseAiMode({ AI_MODE: "live" }, "development");
+
+    expect(summary.valid).toBe(false);
+    expect(summary.aiMode).toBe("mock");
+    expect(summary.model).toBe(defaultModel);
+  });
+
+  it("does not claim validity when production has no key either", () => {
+    expect(summariseAiMode({}, "production").valid).toBe(false);
+    expect(summariseAiMode({}, "production").aiMode).toBe("mock");
   });
 });
