@@ -28,7 +28,7 @@ export function HeroFallback() {
       <div className="relative grid w-full max-w-[470px] grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:gap-6">
         {/* the resume page, two sheets deep */}
         <div className="relative" style={{ ["--r" as string]: "1.5deg" }}>
-          <div className="absolute -left-2 -top-2 size-full rotate-[-5deg] rounded-2xl bg-card/70 shadow-(--shadow-rest) ring-1 ring-foreground/[0.06]" />
+          <div className="absolute -left-2 -top-2 size-full rotate-[-5deg] rounded-2xl bg-card shadow-(--shadow-rest) ring-1 ring-foreground/[0.06]" />
           <div
             className="relative animate-[bob_7s_ease-in-out_infinite] rounded-2xl bg-card p-4 shadow-(--shadow-float) ring-1 ring-foreground/[0.07] motion-reduce:animate-none"
             style={{ ["--r" as string]: "1.5deg" }}
