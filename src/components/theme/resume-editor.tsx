@@ -245,7 +245,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
   if (state.status !== "ready") {
     return (
       <div className="flex flex-col gap-3 py-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="title">
           {state.status === "missing" ? "Resume not found" : "Local storage is unavailable"}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -301,7 +301,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
           / <span className="font-mono">{record.id}</span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          <h1 className="title">{title}</h1>
           {editable ? null : <ManualModeBadge />}
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">

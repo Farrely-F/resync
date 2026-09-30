@@ -42,7 +42,7 @@ function Sheet({
           <mesh key={`${index}-${fraction}`} position={[-LINE_MAX / 2 + width / 2, LINE_TOP - index * LINE_GAP, 0.032]}>
             <boxGeometry args={[width, 0.045, 0.01]} />
             <meshStandardMaterial
-              color={index === highlight ? "#18181b" : "#a1a1aa"}
+              color={index === highlight ? "#4c63e6" : "#b4b4c0"}
               metalness={0}
               roughness={0.6}
             />

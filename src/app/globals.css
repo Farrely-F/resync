@@ -49,30 +49,31 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Warm paper canvas, blue-tinted ink, one electric accent. */
+  --background: oklch(0.978 0.005 85);
+  --foreground: oklch(0.19 0.02 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.19 0.02 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.19 0.02 265);
+  --primary: oklch(0.56 0.21 264);
+  --primary-foreground: oklch(0.99 0.005 264);
+  --secondary: oklch(0.945 0.008 85);
+  --secondary-foreground: oklch(0.25 0.02 265);
+  --muted: oklch(0.95 0.007 85);
+  --muted-foreground: oklch(0.5 0.02 265);
+  --accent: oklch(0.945 0.03 264);
+  --accent-foreground: oklch(0.35 0.14 264);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.91 0.008 85);
+  --input: oklch(0.89 0.01 85);
+  --ring: oklch(0.56 0.21 264);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 0.875rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -81,27 +82,38 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Depth: every layer is an offset plus a soft blur, stacked from tight to wide. */
+  --shadow-rest: 0 1px 1px oklch(0.2 0.03 265 / 0.04), 0 2px 6px oklch(0.2 0.03 265 / 0.05);
+  --shadow-lift:
+    0 1px 1px oklch(0.2 0.03 265 / 0.04), 0 6px 14px oklch(0.2 0.03 265 / 0.07),
+    0 22px 48px -12px oklch(0.25 0.06 265 / 0.16);
+  --shadow-float:
+    0 2px 4px oklch(0.2 0.03 265 / 0.05), 0 14px 32px oklch(0.2 0.03 265 / 0.1),
+    0 40px 80px -16px oklch(0.3 0.1 265 / 0.28);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --background: oklch(0.145 0.012 265);
+  --foreground: oklch(0.975 0.005 85);
+  --card: oklch(0.2 0.014 265);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.68 0.19 264);
+  --primary-foreground: oklch(0.15 0.02 265);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.3 0.06 264);
+  --accent-foreground: oklch(0.92 0.05 264);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.68 0.19 264);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -121,11 +133,220 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    font-feature-settings: "cv11", "ss03", "calt";
+    scroll-behavior: smooth;
+    scrollbar-color: oklch(0.7 0.02 265 / 0.45) transparent;
+    scrollbar-width: thin;
+  }
+  body {
+    @apply bg-background text-foreground;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  ::selection {
+    background: oklch(0.56 0.21 264 / 0.22);
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  a:not([class]) {
+    text-underline-offset: 0.25em;
+    text-decoration-thickness: 1px;
+  }
+  input,
+  textarea {
+    caret-color: var(--primary);
+  }
+  table,
+  [data-tabular],
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.7 0.02 265 / 0.4);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.6 0.03 265 / 0.6);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+  }
+}
+
+/* ---------- Living background: two slow-drifting colour fields behind everything ---------- */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora::before,
+.aurora::after {
+  content: "";
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+  will-change: transform;
+}
+.aurora::before {
+  top: -28vmax;
+  left: -14vmax;
+  background: radial-gradient(circle at 40% 40%, oklch(0.82 0.11 264 / 0.75), transparent 68%);
+  animation: drift-a 26s var(--ease-out-expo) infinite alternate;
+}
+.aurora::after {
+  top: 6vmax;
+  right: -26vmax;
+  background: radial-gradient(circle at 50% 50%, oklch(0.88 0.1 330 / 0.6), transparent 66%);
+  animation: drift-b 32s ease-in-out infinite alternate;
+}
+.dark .aurora::before,
+.dark .aurora::after {
+  opacity: 0.28;
+}
+@keyframes drift-a {
+  to {
+    transform: translate3d(14vmax, 10vmax, 0) scale(1.15);
+  }
+}
+@keyframes drift-b {
+  to {
+    transform: translate3d(-12vmax, 16vmax, 0) scale(0.9);
+  }
+}
+
+/* ---------- Motion vocabulary ---------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+@keyframes pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes sweep {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes bob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--r, 0deg));
+  }
+  50% {
+    transform: translate3d(0, -10px, 0) rotate(calc(var(--r, 0deg) + 0.6deg));
+  }
+}
+@keyframes sheen {
+  from {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+@keyframes count {
+  from {
+    --n: 0;
+  }
+  to {
+    --n: var(--to);
+  }
+}
+@property --n {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+.count-up {
+  animation: count 1.6s var(--ease-out-expo) 0.9s both;
+  counter-reset: n var(--n);
+}
+.count-up::after {
+  content: counter(n);
+}
+
+/* Page content settles in as the route changes. */
+.page-enter > * {
+  animation: rise 0.7s var(--ease-out-expo) both;
+}
+.page-enter > *:nth-child(2) {
+  animation-delay: 70ms;
+}
+.page-enter > *:nth-child(3) {
+  animation-delay: 140ms;
+}
+.page-enter > *:nth-child(n + 4) {
+  animation-delay: 210ms;
+}
+
+/* Surfaces that answer the pointer. */
+.lift {
+  transition:
+    transform 0.5s var(--ease-out-expo),
+    box-shadow 0.5s var(--ease-out-expo);
+  box-shadow: var(--shadow-rest);
+}
+.lift:hover {
+  transform: translate3d(0, -4px, 0);
+  box-shadow: var(--shadow-lift);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .aurora::before,
+  .aurora::after,
+  .page-enter > *,
+  .count-up {
+    animation: none;
+    --n: var(--to);
+  }
+  .lift,
+  .lift:hover {
+    transition: none;
+    transform: none;
   }
 }
 /*
@@ -149,4 +370,87 @@
   [data-slot="collapsible-content"] {
     transition: none;
   }
+}
+
+/*
+ * Scroll reveals: pure CSS, no JavaScript. Browsers without scroll-driven
+ * animations simply show the content, so nothing is ever hidden by the effect.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 42%;
+    }
+    .reveal-slow {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 5% entry 70%;
+    }
+  }
+}
+
+/* Headline type: tight, large, heavy enough to hold the page together. */
+.display {
+  font-size: clamp(2.6rem, 6vw, 4.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  font-weight: 650;
+  text-wrap: balance;
+}
+.title {
+  font-size: clamp(2rem, 4.6vw, 3.4rem);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  font-weight: 650;
+  text-wrap: balance;
+}
+.lede {
+  font-size: clamp(1.05rem, 1.5vw, 1.3rem);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+
+/* A highlighter stroke that draws itself under a word. */
+.ink {
+  position: relative;
+  white-space: nowrap;
+  color: var(--primary);
+}
+.ink::after {
+  content: "";
+  position: absolute;
+  left: -0.05em;
+  right: -0.05em;
+  bottom: 0.04em;
+  height: 0.16em;
+  border-radius: 999px;
+  background: oklch(0.56 0.21 264 / 0.22);
+  transform-origin: left;
+  animation: sweep 1s var(--ease-out-expo) 0.7s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ink::after {
+    animation: none;
+  }
+}
+
+/* Button sheen on the primary call to action. */
+.sheen {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.45), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  pointer-events: none;
+}
+.sheen:hover::after {
+  animation: sheen 0.9s var(--ease-out-expo);
 }

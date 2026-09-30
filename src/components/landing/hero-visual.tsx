@@ -61,7 +61,7 @@ export function HeroVisual() {
   return (
     <div
       aria-label="A resume page with the line the match rests on, checked against the posting's requirements and scored 70 percent in this example."
-      className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-border/70 bg-card md:aspect-[5/4]"
+      className="relative aspect-[4/3] w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-card/90 via-card/60 to-accent/70 shadow-(--shadow-float) ring-1 ring-foreground/[0.06] backdrop-blur-sm md:aspect-[5/4]"
       data-three={decision?.enabled ? "enabled" : "fallback"}
       data-three-reason={decision?.reason ?? undefined}
       role="img"

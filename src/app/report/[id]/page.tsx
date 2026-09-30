@@ -11,7 +11,7 @@ export default async function ReportPage({ params }: PageProps<"/report/[id]">) 
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Match report</h1>
+        <h1 className="title">Match report</h1>
         <p className="text-sm text-muted-foreground">
           Report <span className="font-mono text-foreground">{id}</span>
         </p>
