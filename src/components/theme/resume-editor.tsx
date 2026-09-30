@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Download } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { CompilePanel } from "@/components/compile/compile-panel";
+import { BasicsEditor } from "@/components/editor/basics-editor";
+import { clearDraft, draftKeyFor, preferNewerRecord, readDraft, writeDraft } from "@/components/editor/draft-journal";
+import { normalizeResume } from "@/components/editor/resume-ops";
+import { SectionsEditor } from "@/components/editor/sections-editor";
+import { saveDebounceMs, useDebouncedSave, type SaveStatus } from "@/components/editor/use-debounced-save";
+import { SliceNotice } from "@/components/slice-notice";
 import { ThemePicker } from "@/components/theme/theme-picker";
-import { deriveResumeTitle } from "@/lib/resume/schema";
+import { Button } from "@/components/ui/button";
+import { deriveResumeTitle, type Resume } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
 import type { ResumeRecord } from "@/lib/storage/types";
 import { resolveTheme, themes } from "@/lib/themes";
@@ -19,26 +25,60 @@ type EditorState =
   | { status: "unreadable" }
   | { status: "ready"; record: ResumeRecord };
 
+const saveCopy: Record<SaveStatus, string> = {
+  idle: "Changes save to this browser as you type.",
+  pending: "Saving…",
+  saved: "Saved to this browser.",
+  error: "The last change could not be saved.",
+};
+
 /**
- * The theme surface of the resume editor.
+ * The resume editor: fields, structure, theme, generated LaTeX and PDF.
  *
  * The record lives in IndexedDB, so the resume is loaded in the browser rather
- * than on the server. Everything rendered here is derived: picking a theme writes
- * `themeId` back to the record and regenerates the LaTeX from the canonical data.
+ * than on the server. Everything below is derived: an edit writes the canonical
+ * resume back through a debounced queue and re-renders the LaTeX from it, so the
+ * document on screen is always the document the last edit produced.
+ *
+ * The queue is the reason there is no save button — see `useDebouncedSave` for
+ * how the last keystroke is still written when the tab is hidden or unmounted.
  */
 export function ResumeEditor({ resumeId }: { resumeId: string }) {
   const [state, setState] = useState<EditorState>({ status: "loading" });
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // The newest record, so an edit never has to read the value a render captured.
+  const latest = useRef<ResumeRecord | null>(null);
+
+  const persist = useCallback(async (record: ResumeRecord) => {
+    await getStorage().putResume(record);
+  }, []);
+
+  const { save, flush, status } = useDebouncedSave(persist, { delayMs: saveDebounceMs });
 
   useEffect(() => {
     let cancelled = false;
+    const key = draftKeyFor(resumeId);
+    // Read before the record: it is only there when the last session was cut short
+    // before its debounced write reached IndexedDB. It is cleared once this run has
+    // decided, not while reading, so a discarded development effect cannot eat it.
+    const draft = readDraft(key);
 
     getStorage()
       .getResume(resumeId)
       .then(
-        (record) => {
-          if (!cancelled) {
-            setState(record ? { status: "ready", record } : { status: "missing" });
+        (stored) => {
+          if (cancelled) {
+            return;
+          }
+
+          const record = preferNewerRecord(stored, draft, resumeId);
+          latest.current = record;
+          setState(record ? { status: "ready", record } : { status: "missing" });
+          clearDraft(key);
+
+          if (record !== null && record !== stored) {
+            // Recovered: put it back through the normal path so storage and the
+            // screen agree again without a second edit.
+            void getStorage().putResume({ ...record, resume: normalizeResume(record.resume) });
           }
         },
         () => {
@@ -52,6 +92,65 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
       cancelled = true;
     };
   }, [resumeId]);
+
+  useEffect(() => {
+    const key = draftKeyFor(resumeId);
+
+    function stash() {
+      if (latest.current) {
+        writeDraft(key, latest.current);
+      }
+    }
+
+    function stashWhenHidden() {
+      if (document.visibilityState === "hidden") {
+        stash();
+      }
+    }
+
+    document.addEventListener("visibilitychange", stashWhenHidden);
+    window.addEventListener("pagehide", stash);
+
+    return () => {
+      document.removeEventListener("visibilitychange", stashWhenHidden);
+      window.removeEventListener("pagehide", stash);
+    };
+  }, [resumeId]);
+
+  /** Puts a record on screen and queues the normalised copy for storage. */
+  const writeRecord = useCallback(
+    (next: ResumeRecord) => {
+      // The title is derived, so it is refreshed here rather than left to whoever
+      // built the record: the library list reads it, and the journal copies it.
+      const titled: ResumeRecord = { ...next, title: deriveResumeTitle(next.resume) };
+      latest.current = titled;
+      setState({ status: "ready", record: titled });
+      save({ ...titled, resume: normalizeResume(titled.resume) });
+    },
+    [save],
+  );
+
+  const applyResume = useCallback(
+    (next: Resume) => {
+      const current = latest.current;
+      if (!current) {
+        return;
+      }
+      writeRecord({ ...current, resume: next, updatedAt: new Date().toISOString() });
+    },
+    [writeRecord],
+  );
+
+  const selectTheme = useCallback(
+    (themeId: string) => {
+      const current = latest.current;
+      if (!current || current.themeId === themeId) {
+        return;
+      }
+      writeRecord({ ...current, themeId, updatedAt: new Date().toISOString() });
+    },
+    [writeRecord],
+  );
 
   if (state.status === "loading") {
     return (
@@ -87,26 +186,14 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
   }
 
   const { record } = state;
-  const report = renderResumeForThemeId(record.resume, record.themeId);
+  // Manual mode means the saved LaTeX is the document; editing fields would not
+  // reach it, so the fields are shown read-only with the reason next to them.
+  const editable = record.mode !== "manual";
+  const themeName = resolveTheme(record.themeId).name;
+  // Empty optional fields are normalised on the way into the generator as well as
+  // on the way to storage, so the preview shows the document the data produces.
+  const report = renderResumeForThemeId(normalizeResume(record.resume), record.themeId);
   const title = deriveResumeTitle(record.resume);
-
-  async function selectTheme(themeId: string) {
-    if (record.themeId === themeId) {
-      return;
-    }
-
-    const updated: ResumeRecord = { ...record, themeId, updatedAt: new Date().toISOString() };
-    setState({ status: "ready", record: updated });
-    setSaveError(null);
-
-    try {
-      await getStorage().putResume(updated);
-    } catch {
-      // Do not leave a selection on screen that a reload would silently undo.
-      setState({ status: "ready", record });
-      setSaveError("The theme could not be saved to this browser, so the previous choice was restored.");
-    }
-  }
 
   function downloadTex() {
     const url = URL.createObjectURL(new Blob([report.tex], { type: "application/x-tex" }));
@@ -128,18 +215,58 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         </p>
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          The theme decides how the generated LaTeX sets your resume. Changing it re-renders the document below from
-          your structured data; nothing is uploaded.
+          Edit the fields and the structure; the LaTeX and the PDF follow your data. Everything stays in this browser.
         </p>
       </div>
 
+      {editable ? null : (
+        <section
+          aria-labelledby="manual-mode-heading"
+          className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/40 p-4"
+        >
+          <h2 className="text-sm font-semibold" id="manual-mode-heading">
+            Hand-edited LaTeX: field editing is off
+          </h2>
+          <p className="text-sm leading-relaxed">
+            This resume is in manual mode: its document was edited as LaTeX by hand, so it is no longer generated from
+            the fields below. Changing a field would not change your document and would leave the two out of step, so
+            the fields are read-only here. The saved LaTeX itself is untouched.
+          </p>
+        </section>
+      )}
+
+      {editable ? null : (
+        <SliceNotice issue={8}>
+          The action that regenerates the document from these fields is not built yet.
+        </SliceNotice>
+      )}
+
       <ThemePicker onSelect={selectTheme} selectedId={record.themeId} themes={themes} />
 
-      {saveError ? (
-        <p className="text-sm text-destructive" role="alert">
-          {saveError}
+      <div className="flex flex-col gap-2">
+        <p aria-live="polite" className="text-xs text-muted-foreground">
+          {saveCopy[status]}
         </p>
-      ) : null}
+        {status === "error" ? (
+          <p className="text-sm text-destructive" role="alert">
+            This browser refused to store the change, so a reload may show the previous version. Nothing was lost on
+            screen; check that local storage is available and try the edit again.
+          </p>
+        ) : null}
+      </div>
+
+      {/*
+        `min-w-0` is load-bearing: a fieldset's user-agent style is
+        `min-width: min-content`, which would let this one grow past the page
+        column on a narrow phone and give the document a horizontal scroll.
+      */}
+      <fieldset className="m-0 min-w-0 border-0 p-0" disabled={!editable} onBlur={() => void flush()}>
+        <legend className="sr-only">Resume fields</legend>
+        <div className="flex flex-col gap-6">
+          <BasicsEditor onChange={applyResume} resume={record.resume} />
+          <SectionsEditor onChange={applyResume} resume={record.resume} />
+        </div>
+      </fieldset>
 
       <section className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -152,7 +279,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
 
         <p className="text-xs leading-relaxed text-muted-foreground">
           {report.tex.split("\n").length} lines, {(report.tex.length / 1024).toFixed(1)} kB, rendered with the{" "}
-          {resolveTheme(record.themeId).name} theme.
+          {themeName} theme.
           {record.mode === "manual" ? (
             <>
               {" "}
@@ -179,7 +306,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         </pre>
       </section>
 
-      <CompilePanel tex={report.tex} themeName={resolveTheme(record.themeId).name} title={title} />
+      <CompilePanel tex={report.tex} themeName={themeName} title={title} />
     </div>
   );
 }
