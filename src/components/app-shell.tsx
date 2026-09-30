@@ -69,11 +69,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-dvh flex-col">
         <div aria-hidden className="aurora" />
 
-        <header className="sticky top-3 z-30 mx-auto hidden w-full max-w-5xl px-6 md:block">
+        <header className="sticky top-[max(0.75rem,env(safe-area-inset-top))] z-30 mx-auto w-full max-w-5xl px-4 md:px-6">
           <LayoutGroup id="top-nav">
             <nav className="flex h-12 items-center gap-2 rounded-full border border-white/60 bg-background/95 px-2 shadow-(--shadow-lift) ring-1 ring-foreground/[0.06] backdrop-blur-2xl backdrop-saturate-150 dark:border-white/10">
               <Wordmark />
-              <ul className="ml-auto flex items-center gap-0.5 text-sm">
+              <ul className="ml-auto hidden items-center gap-0.5 text-sm md:flex">
                 {navItems.map(({ href, label }) => {
                   const active = isActive(pathname, href);
                   return (
@@ -100,7 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 })}
               </ul>
               <Link
-                className="ml-1 hidden h-8 items-center rounded-full bg-foreground px-4 text-[13px] font-medium text-background transition-[transform,opacity] duration-300 ease-(--ease-out-expo) hover:scale-[1.04] active:scale-95 lg:inline-flex"
+                className="ml-auto inline-flex h-8 items-center rounded-full bg-foreground px-4 text-[13px] font-medium text-background transition-[transform,opacity] duration-300 ease-(--ease-out-expo) hover:scale-[1.04] active:scale-95 md:ml-1"
                 href="/match"
               >
                 New match
