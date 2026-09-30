@@ -78,6 +78,32 @@ Two placement defaults are set in the primitive on purpose, so every select beha
 `SelectContent` is popper-style (`sideOffset = 4`, `alignItemWithTrigger = false`), which anchors the list below the
 trigger rather than Base UI's default of aligning the selected item over it.
 
+## Logging
+
+Server-side events are one JSON object per line, on stderr for `warn` and `error` and on stdout for the rest, so a
+drain can index them and a person can still read them with `| jq`. `LOG_LEVEL` selects `debug`, `info` (the default),
+`warn` or `error`; an unrecognised value means `info`, because a typo in a log level must not be the reason a failure
+is invisible.
+
+Two things are never written to a line, and both are load-bearing:
+
+- **Credentials.** A key in a log line is a key that has to be rotated. Values are redacted by field name and by
+  shape, so a key that arrives inside an error message or a URL goes too.
+- **The prompt.** On every AI path the prompt is the reader's resume text, and the promise about that text is that it
+  stays in their browser. Lines carry counts (`promptChars`), never documents — including the SDK's own
+  `requestBodyValues`, which is the one field `describeError` deliberately drops.
+
+A failure logs both halves: the kind the seam decided on (`quota`, `provider`, `offline`, `timeout`, `config`,
+`unknown`) and the provider's own words underneath — status, URL, and response body. That is the difference between
+`unknown` and knowing which schema property the provider rejected.
+
+Every line for one request carries its `requestId`, which the error bodies include too, so a failure someone reports
+can be matched to the line that explains it:
+
+```bash
+npm run dev | jq -c 'select(.level == "error" or .event == "route.parse-resume.failed")'
+```
+
 ## Architecture notes
 
 - **Canonical data model**: JSON Resume (basics, work with bullets, education, skills, projects, certificates,

@@ -28,12 +28,18 @@ export function buildParseResumePrompt(text: string): string {
   return ["Resume plain text follows between the markers.", "<<<RESUME", text.trim(), "RESUME>>>"].join("\n");
 }
 
-export async function parseResume(text: string): Promise<Resume> {
+/**
+ * `requestId` is passed through so the seam's lines join up with the route's:
+ * one id per request, from the handler that received it to the model that
+ * refused it.
+ */
+export async function parseResume(text: string, requestId?: string): Promise<Resume> {
   return runStructured({
     task: "parse-resume",
     schema: resumeSchema,
     instructions: parseResumeInstructions,
     prompt: buildParseResumePrompt(text),
     fixtures: { "parse-resume": parseResumeFixture },
+    requestId,
   });
 }

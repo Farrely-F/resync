@@ -5,8 +5,10 @@ import { defaultBackoffPolicy, planRetry, type BackoffPolicy } from "@/lib/ai/ba
 import { withDeadline } from "@/lib/ai/deadline";
 import { AiFailureError, toAiFailure } from "@/lib/ai/failures";
 import { inFlightModelRequests } from "@/lib/ai/inflight";
+import { describeError } from "@/lib/ai/logging";
 import { createModel } from "@/lib/ai/provider";
 import { getEnv, type AppEnv, type ModelTarget } from "@/lib/env";
+import { logEvent, newRequestId } from "@/lib/log";
 
 /**
  * Every structured AI call in the app goes through this seam. In mock mode the
@@ -69,6 +71,11 @@ export interface RunStructuredOptions<T> {
   /** Overrides the retry schedule for this call. */
   backoff?: BackoffPolicy;
   /**
+   * Correlates this call's log lines with the request that caused it. A caller
+   * that does not pass one gets a generated id, so every line still has one.
+   */
+  requestId?: string;
+  /**
    * A caller's own cancellation. Passing one disables duplicate collapsing,
    * because one caller aborting must not cancel another caller's shared call.
    */
@@ -88,6 +95,17 @@ export function orderedTargets(env: AppEnv): ModelTarget[] {
     seen.add(key);
     return true;
   });
+}
+
+/**
+ * What one call did, so the terminal log line can say which model answered and
+ * how many attempts it took. Mutable and internal: it exists to be filled in by
+ * `callModels` and read once by `runStructured`.
+ */
+interface CallTrace {
+  requestId: string;
+  attempts: number;
+  target: ModelTarget | null;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -121,7 +139,7 @@ async function generateStructured<T>(
   return output;
 }
 
-async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Promise<T> {
+async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trace: CallTrace): Promise<T> {
   const policy = options.backoff ?? defaultBackoffPolicy;
   const deadlineMs = options.deadlineMs ?? defaultDeadlineMs;
   const targets = orderedTargets(env);
@@ -135,6 +153,15 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Pro
 
   for (const target of targets) {
     if (spentProviders.has(target.provider)) {
+      // Worth a line: a model that was configured but never tried is otherwise
+      // indistinguishable from one that was tried and failed.
+      logEvent("debug", "ai.target.skipped", {
+        requestId: trace.requestId,
+        task: options.task,
+        provider: target.provider,
+        modelId: target.modelId,
+        reason: "provider-allowance-spent",
+      });
       continue;
     }
 
@@ -143,13 +170,55 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Pro
     for (let attempt = 1; attempt <= policy.maxAttempts; attempt += 1) {
       const remainingMs = deadlineAt - Date.now();
       if (remainingMs <= 0) {
+        logEvent("debug", "ai.deadline.reached", {
+          requestId: trace.requestId,
+          task: options.task,
+          provider: target.provider,
+          modelId: target.modelId,
+          deadlineMs,
+        });
         throw new AiFailureError("timeout", `The model did not answer within ${deadlineMs} ms.`, { cause: failure });
       }
 
+      const attemptStartedAt = Date.now();
+      trace.attempts = attempt;
+      trace.target = target;
+      logEvent("debug", "ai.attempt.started", {
+        requestId: trace.requestId,
+        task: options.task,
+        provider: target.provider,
+        modelId: target.modelId,
+        attempt,
+      });
+
       try {
-        return await generateStructured(model, options, remainingMs, options.signal);
+        const value = await generateStructured(model, options, remainingMs, options.signal);
+        logEvent("info", "ai.attempt.succeeded", {
+          requestId: trace.requestId,
+          task: options.task,
+          provider: target.provider,
+          modelId: target.modelId,
+          attempt,
+          durationMs: Date.now() - attemptStartedAt,
+        });
+        return value;
       } catch (error) {
         failure = toAiFailure(error);
+        logEvent("warn", "ai.attempt.failed", {
+          requestId: trace.requestId,
+          task: options.task,
+          provider: target.provider,
+          modelId: target.modelId,
+          attempt,
+          durationMs: Date.now() - attemptStartedAt,
+          // Both halves: the kind the code decided on, and the provider's own
+          // answer underneath it.
+          failureKind: failure.kind,
+          retryable: failure.retryable,
+          routing: failure.routing,
+          retryAfterSeconds: failure.retryAfterSeconds,
+          error: describeError(error),
+        });
 
         // Anything unrecognised keeps its own error type: the routes tell an
         // unusable model answer apart from a transport failure by its shape.
@@ -179,9 +248,25 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Pro
         const retryAfterMs = failure.retryAfterSeconds === null ? null : failure.retryAfterSeconds * 1000;
         const plan = planRetry(attempt, retryAfterMs, policy);
         if (!plan.retry || plan.delayMs >= deadlineAt - Date.now()) {
+          logEvent("debug", "ai.attempt.abandoned", {
+            requestId: trace.requestId,
+            task: options.task,
+            provider: target.provider,
+            modelId: target.modelId,
+            attempt,
+            reason: plan.retry ? "no-time-left-in-the-budget" : "attempt-budget-spent",
+          });
           break;
         }
 
+        logEvent("debug", "ai.retry.scheduled", {
+          requestId: trace.requestId,
+          task: options.task,
+          provider: target.provider,
+          modelId: target.modelId,
+          attempt,
+          delayMs: plan.delayMs,
+        });
         await sleep(plan.delayMs);
       }
     }
@@ -192,6 +277,9 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv): Pro
 
 export async function runStructured<T>(options: RunStructuredOptions<T>): Promise<T> {
   const env = options.env ?? getEnv();
+  const requestId = options.requestId ?? newRequestId();
+  const trace: CallTrace = { requestId, attempts: 0, target: null };
+  const startedAt = Date.now();
 
   if (env.aiMode === "mock") {
     const fixture = options.fixtures?.[options.task];
@@ -200,10 +288,52 @@ export async function runStructured<T>(options: RunStructuredOptions<T>): Promis
     }
 
     // Fixtures are validated too: a stale recording must not masquerade as a valid model response.
-    return options.schema.parse(fixture);
+    const parsed = options.schema.parse(fixture);
+    logEvent("debug", "ai.mock.answered", {
+      requestId,
+      task: options.task,
+      durationMs: Date.now() - startedAt,
+    });
+    return parsed;
   }
 
-  const call = () => callModels(options, env);
+  // Counts, never the prompt: the prompt is the reader's resume.
+  logEvent("info", "ai.call.started", {
+    requestId,
+    task: options.task,
+    provider: env.provider,
+    modelId: env.model,
+    targets: orderedTargets(env).map((target) => `${target.provider}/${target.modelId}`),
+    deadlineMs: options.deadlineMs ?? defaultDeadlineMs,
+    promptChars: options.prompt.length,
+  });
+
+  const call = async () => {
+    try {
+      const value = await callModels(options, env, trace);
+      logEvent("info", "ai.call.succeeded", {
+        requestId,
+        task: options.task,
+        provider: trace.target?.provider ?? null,
+        modelId: trace.target?.modelId ?? null,
+        attempts: trace.attempts,
+        durationMs: Date.now() - startedAt,
+      });
+      return value;
+    } catch (error) {
+      logEvent("error", "ai.call.failed", {
+        requestId,
+        task: options.task,
+        lastProvider: trace.target?.provider ?? null,
+        lastModelId: trace.target?.modelId ?? null,
+        attempts: trace.attempts,
+        durationMs: Date.now() - startedAt,
+        error: describeError(error),
+      });
+      throw error;
+    }
+  };
+
   if (options.signal !== undefined) {
     return call();
   }

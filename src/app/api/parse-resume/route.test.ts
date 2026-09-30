@@ -1,7 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { APICallError } from "ai";
+import { describe, expect, it, vi } from "vitest";
 
 import { MAX_RESUME_TEXT_CHARS, POST, validateParseResumeBody } from "@/app/api/parse-resume/route";
+import { AiFailureError } from "@/lib/ai/failures";
 import { parseResumeFixture } from "@/lib/resume/fixtures";
+import { parseResume } from "@/lib/resume/parse";
+
+// The route's failure path is only reachable when the seam fails, and making the
+// seam fail for real would mean a network call in a unit test. The real
+// implementation stays the default, so the other tests here still exercise it.
+vi.mock("@/lib/resume/parse", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/resume/parse")>();
+  return { ...actual, parseResume: vi.fn(actual.parseResume) };
+});
+
+const parseResumeMock = vi.mocked(parseResume);
 
 const validText = "Priya Raman\nSenior Backend Engineer\npriya.raman@example.com";
 
@@ -62,9 +75,13 @@ describe("POST /api/parse-resume", () => {
     const response = await POST(postRequest("{not json"));
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: { code: "invalid-json", message: "Request body must be valid JSON." },
-    });
+    const body = (await response.json()) as { error: { code: string; message: string; requestId: string } };
+
+    expect(body.error.code).toBe("invalid-json");
+    expect(body.error.message).toBe("Request body must be valid JSON.");
+    // The id is what joins a failure the user reports to the line that explains
+    // it, so every error body carries one.
+    expect(body.error.requestId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it("returns the validation error shape for short text", async () => {
@@ -81,5 +98,55 @@ describe("POST /api/parse-resume", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { resume: unknown };
     expect(body.resume).toEqual(parseResumeFixture);
+  });
+
+  it("logs a failed parse with the provider's own reason, under the id it returns", async () => {
+    // The regression this guards: a provider rejection logged as "unknown" with
+    // the reason discarded, which is what made this class of failure take a
+    // network trace to diagnose. The status, the URL and the body are the point.
+    const providerError = new APICallError({
+      message: "invalid JSON schema for response_format: /properties/skills/items/required",
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      requestBodyValues: { messages: [{ role: "user", content: validText }] },
+      statusCode: 400,
+      responseBody: '{"error":{"message":"/properties/skills/items/required"}}',
+      isRetryable: false,
+    });
+    parseResumeMock.mockRejectedValueOnce(new AiFailureError("unknown", "refused", { cause: providerError }));
+
+    let captured = "";
+    const out = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      captured += String(chunk);
+      return true;
+    });
+    const err = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      captured += String(chunk);
+      return true;
+    });
+
+    let response: Response;
+    try {
+      response = await POST(postRequest(JSON.stringify({ text: validText })));
+    } finally {
+      out.mockRestore();
+      err.mockRestore();
+    }
+
+    const body = (await response.json()) as { error: { code: string; requestId: string } };
+    const lines = captured
+      .split("\n")
+      .filter((line) => line.startsWith("{"))
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const failed = lines.find((line) => line.event === "route.parse-resume.failed");
+
+    expect(response.status).toBe(502);
+    expect(failed).toBeDefined();
+    expect(failed).toMatchObject({ level: "error", requestId: body.error.requestId });
+    const described = JSON.stringify(failed);
+    expect(described).toContain("400");
+    expect(described).toContain("https://api.groq.com/openai/v1/chat/completions");
+    expect(described).toContain("/properties/skills/items/required");
+    // The prompt is the reader's resume text; a log file is not a place for it.
+    expect(described).not.toContain(validText);
   });
 });

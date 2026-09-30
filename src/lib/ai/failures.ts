@@ -56,8 +56,14 @@ export class AiFailureError extends Error {
   }
 }
 
-/** The error and whatever it was caused by, nearest first. Cycles cannot loop it. */
-function* causeChain(error: unknown): Generator<unknown> {
+/**
+ * The error and whatever it was caused by, nearest first. Cycles cannot loop it.
+ *
+ * Exported because logging needs the same walk: the useful part of a provider
+ * failure is usually nested, since the SDK wraps the answer and the seam wraps
+ * the SDK.
+ */
+export function* errorCauseChain(error: unknown): Generator<unknown> {
   const seen = new Set<unknown>();
   let current: unknown = error;
 
@@ -143,7 +149,7 @@ export function toAiFailure(error: unknown): AiFailureError {
     return error;
   }
 
-  for (const candidate of causeChain(error)) {
+  for (const candidate of errorCauseChain(error)) {
     if (isAbortError(candidate)) {
       return new AiFailureError("timeout", "The model call was aborted before it answered.", { cause: error });
     }
@@ -174,7 +180,7 @@ export function toRequestFailure(error: unknown): AiFailureError {
     return error;
   }
 
-  for (const candidate of causeChain(error)) {
+  for (const candidate of errorCauseChain(error)) {
     if (isAbortError(candidate)) {
       return new AiFailureError(
         "timeout",
