@@ -15,8 +15,9 @@ import type { Suggestion } from "@/lib/suggestions/types";
  *
  * - **A hand-edited resume.** In `manual` mode the LaTeX was edited by the user,
  *   so their document and this data no longer say the same thing; applying a
- *   suggestion would silently make them disagree. Regenerating the document from
- *   the data is a separate slice and is not available yet.
+ *   suggestion would silently make them disagree. The way back is the editor's
+ *   "Regenerate from data" action, which discards the hand edits, so the refusal
+ *   points at it rather than leaving the resume stuck.
  * - **A stale target.** If the text at the target is no longer the text the
  *   suggestion was written against, applying it would overwrite a different
  *   bullet. The offer is refused and the user can generate again.
@@ -31,7 +32,7 @@ export type ApplyResult =
 
 export const applyRefusalMessages: Record<ApplyRefusal, string> = {
   "manual-mode":
-    "This resume's LaTeX was hand-edited, so it no longer comes from this data. Applying a suggestion would leave your document and your data describing different things, so nothing was applied. Regenerating the document from your data is not available yet.",
+    "This resume's LaTeX was hand-edited, so it no longer comes from this data. Applying a suggestion would leave your document and your data describing different things, so nothing was applied. Use \"Regenerate from data\" in the editor to go back to a document generated from your data; that discards the hand-edited LaTeX.",
   "missing-resume": "This resume is no longer stored in this browser, so there is nothing to change.",
   "stale-target":
     "The text this suggestion was written against has changed since it was generated, so applying it would overwrite something else. Generate the suggestions again for the current version of the resume.",

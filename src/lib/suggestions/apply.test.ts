@@ -93,7 +93,8 @@ describe("applySuggestion", () => {
 
     expect(outcome.reason).toBe("manual-mode");
     expect(outcome.message).toContain("hand-edited");
-    expect(outcome.message).toContain("not available yet");
+    // The refusal names the way out, which is the editor's "Regenerate from data".
+    expect(outcome.message).toContain("Regenerate from data");
     expect(JSON.stringify(manual)).toBe(snapshot);
   });
 

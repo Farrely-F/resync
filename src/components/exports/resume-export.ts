@@ -1,7 +1,8 @@
 import { sectionLabels } from "@/lib/resume/library";
 import { deriveResumeTitle, withSections, type Resume, type SectionId } from "@/lib/resume/schema";
 import type { ResumeMode, ResumeRecord } from "@/lib/storage/types";
-import { renderResumeForThemeId, texFileName } from "@/lib/tex/generate";
+import { documentSource, type ResumeDocument } from "@/lib/tex/document";
+import { texFileName } from "@/lib/tex/generate";
 
 /**
  * The four exports offered for a stored resume: the generated LaTeX, a JSON
@@ -14,21 +15,18 @@ import { renderResumeForThemeId, texFileName } from "@/lib/tex/generate";
  * rather than read from the clock for the same reason.
  */
 
-export interface ResumeTex {
-  tex: string;
-  /**
-   * `manual` when the record holds hand-edited LaTeX: `manualTex` is the
-   * document of record in that mode and must not be regenerated from data.
-   */
-  source: "manual" | "generated";
-}
+/** The exported `.tex` and which text it is; the same shape the resolver returns. */
+export type ResumeTex = ResumeDocument;
 
+/**
+ * `manual` when the record holds hand-edited LaTeX: `manualTex` is the document
+ * of record in that mode and must not be regenerated from data.
+ *
+ * This is `documentSource` and not a second copy of the rule, so the bytes this
+ * writes are the bytes the compile panel compiles.
+ */
 export function resumeTex(record: ResumeRecord): ResumeTex {
-  if (record.mode === "manual" && record.manualTex !== null) {
-    return { tex: record.manualTex, source: "manual" };
-  }
-
-  return { tex: renderResumeForThemeId(record.resume, record.themeId).tex, source: "generated" };
+  return documentSource(record);
 }
 
 export interface ResumeExport {
