@@ -73,13 +73,16 @@ export function AddResumeForm({ onAdded }: { onAdded: (record: ResumeRecord) => 
   }
 
   return (
-    <section className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
+    <section
+      className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4"
+      data-tour="resume-add"
+    >
       <h2 className="text-sm font-semibold tracking-tight">Add a resume</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         PDF, DOCX, TXT or Markdown. The file stays in this browser; only its extracted text is structured.
       </p>
 
-      <div className="mt-4 flex flex-col gap-2">
+      <div className="mt-4 flex flex-col gap-2" data-tour="resume-file">
         <Label htmlFor="resume-file">Choose a file</Label>
         <input
           accept=".pdf,.docx,.txt,.md,.markdown,application/pdf,text/plain,text/markdown"
@@ -97,7 +100,7 @@ export function AddResumeForm({ onAdded }: { onAdded: (record: ResumeRecord) => 
         />
       </div>
 
-      <div className="mt-4 flex flex-col gap-2">
+      <div className="mt-4 flex flex-col gap-2" data-tour="resume-paste">
         <Label htmlFor="resume-text">Or paste the resume text</Label>
         <Textarea
           className="min-h-32"

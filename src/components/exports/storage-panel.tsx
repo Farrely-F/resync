@@ -39,7 +39,7 @@ export function StoragePanel({
   const percent = estimate.supported && estimate.quotaBytes ? (estimate.usageBytes / estimate.quotaBytes) * 100 : null;
 
   return (
-    <section aria-labelledby="storage-heading" className="flex flex-col gap-4">
+    <section aria-labelledby="storage-heading" className="flex flex-col gap-4" data-tour="settings-storage">
       <h2 className="text-lg font-semibold tracking-tight" id="storage-heading">
         Storage on this device
       </h2>

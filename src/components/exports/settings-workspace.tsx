@@ -5,6 +5,7 @@ import { CircleAlert, LoaderCircle } from "lucide-react";
 
 import { accountStorage } from "@/components/exports/accounting";
 import { DangerZone } from "@/components/exports/danger-zone";
+import { ToursCard } from "@/components/tour/tours-card";
 import { ExportsPanel } from "@/components/exports/exports-panel";
 import { StoragePanel } from "@/components/exports/storage-panel";
 import { getStorage } from "@/lib/storage";
@@ -116,6 +117,7 @@ export function SettingsWorkspace() {
         reports={stored.reports}
         resumes={stored.resumes}
       />
+      <ToursCard />
     </div>
   );
 }

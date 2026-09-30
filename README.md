@@ -104,6 +104,19 @@ can be matched to the line that explains it:
 npm run dev | jq -c 'select(.level == "error" or .event == "route.parse-resume.failed")'
 ```
 
+## Guided tours
+
+Each page explains itself once, the first time it is opened. A tour is data, not code: `src/lib/tour/steps.ts` lists
+steps that point at elements by a `data-tour` id, so the copy is reviewable on its own and the overlay knows nothing
+about any particular page. A step whose element is not on the page is dropped rather than pointed at empty space, which
+is what lets one tour cover a page that has several states.
+
+The overlay is a modal dialog with a focus trap, arrow keys, and Escape; on a phone it is a sheet at the bottom with the
+target scrolled above it, because a popover beside a small target would cover the thing it is describing. Finishing and
+skipping both record the tour as seen (`localStorage`, `resync.tour-progress.v1` — versioned, and an unreadable value
+counts as unseen, because a tour appearing twice is a smaller cost than one that never appears). Leaving a page
+mid-tour does not record it, so it can be offered again. Settings lists every tour with "Show them again" to reset them.
+
 ## Architecture notes
 
 - **Two schemas per AI task, and the reason is strict structured output.** Groq and OpenAI reject any schema whose

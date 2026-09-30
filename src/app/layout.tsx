@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Geist, Geist_Mono, Inter, Instrument_Serif } from "next/font/google";
 
 import "./globals.css";
 
@@ -10,6 +10,8 @@ import { summariseAiMode } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+
+const display = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--font-display" });
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
@@ -35,7 +37,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      className={cn("h-full antialiased", geistSans.variable, geistMono.variable, inter.variable, "font-sans")}
+      className={cn("h-full antialiased", display.variable, geistSans.variable, geistMono.variable, inter.variable, "font-sans")}
       lang="en"
     >
       <body className="min-h-full bg-background text-foreground">

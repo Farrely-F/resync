@@ -93,7 +93,15 @@ export function EngineCacheCard({
   }
 
   return (
-    <section className={cn("flex flex-col gap-3 p-4", nested ? "rounded-xl bg-background ring-1 ring-foreground/[0.08]" : "rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest)")}>
+    <section
+      className={cn(
+        "flex flex-col gap-3 p-4",
+        nested
+          ? "rounded-xl bg-background ring-1 ring-foreground/[0.08]"
+          : "rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest)",
+      )}
+      data-tour="settings-engine"
+    >
       <h2 className="text-sm font-medium">TeX engine on this device</h2>
 
       {status === null ? (

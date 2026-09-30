@@ -65,7 +65,7 @@ export function ResumeLibrary() {
         </p>
       ) : null}
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3" data-tour="resume-list">
         <h2 className="text-sm font-semibold tracking-tight">Your resumes</h2>
         {records === null ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">

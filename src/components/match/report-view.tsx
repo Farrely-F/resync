@@ -149,7 +149,7 @@ export function ReportView({ id }: { id: string }) {
 
   return (
     <article className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
+      <header className="flex flex-col gap-2" data-tour="report-score">
         <p className="text-4xl font-semibold tracking-tight">{formatScore(rubric.score)}%</p>
         <p className="text-sm text-muted-foreground">
           Computed here from {report.criteria.length} criteria by rubric v{rubric.rubricVersion}, not returned by the
@@ -192,7 +192,7 @@ export function ReportView({ id }: { id: string }) {
         )}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="report-criteria">
         <h2 className="text-sm font-semibold">Requirements the resume does not cover</h2>
         {missing.length === 0 ? (
           <p className="text-sm text-muted-foreground">Every criterion the analysis produced is met or partly met.</p>
@@ -216,7 +216,7 @@ export function ReportView({ id }: { id: string }) {
         )}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="report-arithmetic">
         <h2 className="text-sm font-semibold">How the score is made</h2>
         <p className="text-xs leading-relaxed text-muted-foreground">
           score = 100 × earned ÷ available = 100 × {formatPoints(rubric.earned)} ÷ {formatPoints(rubric.possible)} ={" "}

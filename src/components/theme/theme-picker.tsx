@@ -25,7 +25,7 @@ export function ThemePicker({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" data-tour="editor-theme">
       <span className="text-sm font-medium">Theme</span>
       <RadioGroup
         aria-label="Theme"

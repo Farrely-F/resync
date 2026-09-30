@@ -243,7 +243,7 @@ export function DangerZone({
   const emptyReports = reports.length === 0;
 
   return (
-    <section aria-labelledby="danger-heading" className="flex flex-col gap-4">
+    <section aria-labelledby="danger-heading" className="flex flex-col gap-4" data-tour="settings-danger">
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight" id="danger-heading">
           Delete

@@ -16,6 +16,7 @@ import { LatexSourceEditor } from "@/components/latex-editor/latex-source-editor
 import { ManualModeBadge } from "@/components/latex-editor/manual-mode-badge";
 import { RegenerateConfirm } from "@/components/latex-editor/regenerate-confirm";
 import { ThemePicker } from "@/components/theme/theme-picker";
+import { TourLauncher } from "@/components/tour/tour-launcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { deriveResumeTitle, type Resume } from "@/lib/resume/schema";
@@ -303,6 +304,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="title">{title}</h1>
           {editable ? null : <ManualModeBadge />}
+          <TourLauncher />
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           {editable
@@ -355,7 +357,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         scroll.
       */}
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <div className="order-first min-w-0 lg:sticky lg:top-4 lg:order-2 lg:self-start">
+        <div className="order-first min-w-0 lg:sticky lg:top-4 lg:order-2 lg:self-start" data-tour="editor-preview">
           <PreviewPanel
             engine={engine}
             live={livePreview}
@@ -369,7 +371,12 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         </div>
 
         <div className="order-2 flex min-w-0 flex-col gap-6 lg:order-1">
-          <fieldset className="m-0 min-w-0 border-0 p-0" disabled={!editable} onBlur={() => void flush()}>
+          <fieldset
+            className="m-0 min-w-0 border-0 p-0"
+            data-tour="editor-fields"
+            disabled={!editable}
+            onBlur={() => void flush()}
+          >
             <legend className="sr-only">Resume fields</legend>
             <div className="flex flex-col gap-6">
               <BasicsEditor onChange={applyResume} resume={record.resume} />
@@ -392,6 +399,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
               resumeDocument.tex.length / 1024
             ).toFixed(1)} kB`}
             title="LaTeX source"
+            tourId="editor-latex"
           >
             <p className="text-xs leading-relaxed text-muted-foreground">
               Editing this text by hand takes the resume off the generated path: the document becomes yours, the fields

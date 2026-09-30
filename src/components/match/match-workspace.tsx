@@ -110,7 +110,11 @@ function QuotaPanel({ identity, usage, identityError }: {
       : `AI mode: live — model calls go to ${identity.provider} (model: ${identity.model}).`;
 
   return (
-    <section className="flex flex-col gap-1 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4" aria-label="AI mode and requests">
+    <section
+      aria-label="AI mode and requests"
+      className="flex flex-col gap-1 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4"
+      data-tour="match-ai"
+    >
       <p className="text-sm">{modeLine}</p>
       <p className="text-xs leading-relaxed text-muted-foreground">
         {usage === null
@@ -328,7 +332,7 @@ export function MatchWorkspace() {
     <div className="flex flex-col gap-6">
       <QuotaPanel identity={identity} identityError={identityError} usage={usage} />
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="match-resume">
         <h2 className="text-sm font-semibold">1. Your resume</h2>
         <ResumePicker
           loading={loading}
@@ -366,7 +370,7 @@ export function MatchWorkspace() {
         </div>
       ) : null}
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3" data-tour="match-posting">
         <h2 className="text-sm font-semibold">3. The posting to match against</h2>
 
         {loading ? (
@@ -446,7 +450,7 @@ export function MatchWorkspace() {
         )}
       </section>
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3" data-tour="match-run">
         <h2 className="text-sm font-semibold">4. Match</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
           The model answers one question per requirement — met, partly met or missing, with the resume text behind it.
