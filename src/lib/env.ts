@@ -12,9 +12,27 @@ export type AiMode = (typeof aiModes)[number];
 /** Free auto-router; see the quota notes in `.env.example`. */
 export const defaultModel = "openrouter/free";
 
+/**
+ * Models tried in order when the provider answers 503 "no available model
+ * provider meets your routing requirements" — that answer means routing failed,
+ * not that the request was wrong, so the same request is sent to a named model
+ * instead of the router.
+ *
+ * The provider listed these as free, and as supporting the structured output
+ * every call in this app asks for, on 2026-09-30. Free model availability
+ * changes, so they are a default and not a guarantee: `OPENROUTER_FALLBACK_MODELS`
+ * replaces the list, and listing only the configured model leaves none.
+ */
+export const defaultFallbackModels = [
+  "qwen/qwen3.8-27b:free",
+  "nvidia/nemotron-3-super-120b-a12b:free",
+  "dots-studio/dots-3-note-preview:free",
+] as const;
+
 export interface AppEnv {
   aiMode: AiMode;
   model: string;
+  fallbackModels: readonly string[];
   apiKey: string | null;
 }
 
@@ -31,6 +49,15 @@ export class EnvError extends Error {
 function nonEmpty(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+/**
+ * A comma-separated model list. A missing, blank or comma-only value counts as
+ * absent, exactly as a blank model or key does, and falls back to the default.
+ */
+function modelList(value: string | undefined): readonly string[] | undefined {
+  const entries = value?.split(",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  return entries === undefined || entries.length === 0 ? undefined : entries;
 }
 
 export function parseEnv(
@@ -51,6 +78,7 @@ export function parseEnv(
   }
 
   const model = nonEmpty(raw.OPENROUTER_MODEL) ?? defaultModel;
+  const fallbackModels = modelList(raw.OPENROUTER_FALLBACK_MODELS) ?? defaultFallbackModels;
   const apiKey = nonEmpty(raw.OPENROUTER_API_KEY) ?? null;
 
   if (aiMode === "live" && apiKey === null) {
@@ -63,7 +91,7 @@ export function parseEnv(
     throw new EnvError(issues);
   }
 
-  return { aiMode, model, apiKey };
+  return { aiMode, model, fallbackModels, apiKey };
 }
 
 let cached: AppEnv | undefined;

@@ -9,8 +9,8 @@ import { analyzeMatchEvidence, criterionEvidenceSchema } from "@/lib/match/analy
 import { analyzeMatchFixture } from "@/lib/match/fixtures/analyze";
 import { parseResumeFixture } from "@/lib/resume/fixtures";
 
-const mockEnv: AppEnv = { aiMode: "mock", model: "openrouter/free", apiKey: null };
-const liveEnv: AppEnv = { aiMode: "live", model: "openrouter/free", apiKey: "sk-test" };
+const mockEnv: AppEnv = { aiMode: "mock", model: "openrouter/free", fallbackModels: [], apiKey: null };
+const liveEnv: AppEnv = { aiMode: "live", model: "openrouter/free", fallbackModels: [], apiKey: "sk-test" };
 
 function modelReturning(json: unknown) {
   return new MockLanguageModelV4({

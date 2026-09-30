@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EnvError, defaultModel, parseEnv } from "./env";
+import { EnvError, defaultFallbackModels, defaultModel, parseEnv } from "./env";
 
 describe("parseEnv", () => {
   it("defaults to mock mode outside production, with no key required", () => {
@@ -40,7 +40,12 @@ describe("parseEnv", () => {
       "development",
     );
 
-    expect(env).toEqual({ aiMode: "live", model: "some/model:free", apiKey: "sk-test" });
+    expect(env).toEqual({
+      aiMode: "live",
+      model: "some/model:free",
+      fallbackModels: defaultFallbackModels,
+      apiKey: "sk-test",
+    });
   });
 
   it("treats a blank model or key as absent rather than as a value", () => {
@@ -48,6 +53,27 @@ describe("parseEnv", () => {
 
     expect(env.model).toBe(defaultModel);
     expect(env.apiKey).toBeNull();
+  });
+
+  it("uses the documented fallback list when none is configured", () => {
+    expect(parseEnv({}, "development").fallbackModels).toEqual(defaultFallbackModels);
+  });
+
+  it("reads a comma-separated fallback list, trimming blanks and keeping the order", () => {
+    const env = parseEnv(
+      { OPENROUTER_FALLBACK_MODELS: " a/one:free ,, b/two:free ,\n c/three:free " },
+      "development",
+    );
+
+    expect(env.fallbackModels).toEqual(["a/one:free", "b/two:free", "c/three:free"]);
+  });
+
+  it("falls back to the default list for a blank or comma-only value", () => {
+    for (const value of ["", "   ", ",", " , , "]) {
+      expect(parseEnv({ OPENROUTER_FALLBACK_MODELS: value }, "development").fallbackModels).toEqual(
+        defaultFallbackModels,
+      );
+    }
   });
 
   it("reports every problem at once instead of only the first", () => {

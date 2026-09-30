@@ -41,6 +41,12 @@ Two consequences worth knowing before designing anything on top of it:
   score is computed by our own weighted rubric from extracted evidence rather than by the model.
 - Free-tier limits are shared across everyone using the same key (20 requests/minute; 50 requests/day below $10 of
   credits, 1000/day above). Analyses are cached by content hash so repeat runs cost nothing.
+- Failures are typed end to end. The seam raises `AiFailureError` with one of `quota`, `provider`, `offline`, `timeout`,
+  `config`; `/api/analyze` maps the kind to a status and a message; `/match` renders a notice per class with the next
+  step that fits it. Retries are bounded (three attempts per model, `Retry-After` honoured when sent, capped at 8 s and
+  never past the deadline), a 503 walks `OPENROUTER_FALLBACK_MODELS` in order, and a live call has a 30 s deadline, with
+  a 45 s backstop in the browser. Identical concurrent requests share one model call, but only within the process that
+  receives them — `src/lib/ai/inflight.ts` states what that does and does not cover.
 
 ## Architecture notes
 
