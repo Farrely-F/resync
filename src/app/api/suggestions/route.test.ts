@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { POST } from "@/app/api/suggestions/route";
+import { failureResponse, POST } from "@/app/api/suggestions/route";
+import { AiFailureError } from "@/lib/ai/failures";
 import { extractJdFixture } from "@/lib/jd/fixtures/extract-jd";
 import { analyzeMatchFixture } from "@/lib/match/fixtures/analyze";
 import { parseResumeFixture } from "@/lib/resume/fixtures";
@@ -9,6 +10,9 @@ import { parseResumeFixture } from "@/lib/resume/fixtures";
  * The route runs both model calls and hands back what survived plus what was
  * dropped. It must never persist anything: the report's criteria come from the
  * browser and the proposals go back to it.
+ *
+ * A model failure leaves in the shared vocabulary, with the same statuses
+ * `POST /api/analyze` uses, so one 429 reads the same way on both pages.
  */
 
 process.env.AI_MODE = "mock";
@@ -28,6 +32,38 @@ function validBody() {
     criteria: analyzeMatchFixture.criteria.map((criterion, index) => ({ ...criterion, id: `criterion-${index + 1}` })),
   });
 }
+
+describe("failureResponse", () => {
+  it("maps each failure class to the status the analyze route uses for it", () => {
+    const cases = [
+      { kind: "quota", status: 429 },
+      { kind: "provider", status: 503 },
+      { kind: "offline", status: 504 },
+      { kind: "timeout", status: 504 },
+      { kind: "config", status: 500 },
+      { kind: "unknown", status: 502 },
+    ] as const;
+
+    for (const { kind, status } of cases) {
+      const { status: mapped, body } = failureResponse(new AiFailureError(kind, "detail"));
+
+      expect(mapped, kind).toBe(status);
+      expect(body.error.reason).toBe(kind);
+      expect(body.error.kind).toBe(kind);
+      expect(body.error.message.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("carries the wait the provider asked for through to the client", () => {
+    const { body } = failureResponse(new AiFailureError("quota", "detail", { retryAfterSeconds: 30 }));
+
+    expect(body.error.retryAfterSeconds).toBe(30);
+  });
+
+  it("says nothing about a wait when there was none", () => {
+    expect(failureResponse(new AiFailureError("provider", "detail")).body.error.retryAfterSeconds).toBeNull();
+  });
+});
 
 describe("POST /api/suggestions", () => {
   it("returns 400 for malformed JSON rather than throwing", async () => {

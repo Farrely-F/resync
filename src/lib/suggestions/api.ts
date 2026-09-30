@@ -1,3 +1,4 @@
+import { AiFailureError, isAiFailureKind } from "@/lib/ai/failures";
 import type { AiMode } from "@/lib/env";
 import type { Jd } from "@/lib/jd/schema";
 import type { MatchCriterion } from "@/lib/match/types";
@@ -11,7 +12,19 @@ import type { DroppedSuggestion, Suggestion } from "@/lib/suggestions/types";
  * live; the resume and the report's criteria travel up, and proposals come back.
  * Nothing is stored here — the route never touches the user's resume, and the
  * browser only writes when the user accepts.
+ *
+ * A failure arrives in the shared vocabulary from `lib/ai/failures.ts`, read the
+ * same way the match client reads it, so the page can tell a spent allowance
+ * from an unreachable provider from being offline instead of showing one
+ * generic message for all three.
  */
+
+/**
+ * A suggestion run is two model calls, each with the seam's own 30 s budget, so
+ * this backstop sits past both: a hung request must end in a message rather than
+ * in a spinner that never stops.
+ */
+export const suggestionsDeadlineMs = 70_000;
 
 export interface SuggestionsRequestBody {
   resume: Resume;
@@ -29,13 +42,13 @@ export interface SuggestionsSuccess {
 }
 
 export interface SuggestionsFailure {
-  error: { reason: string; message: string };
-}
-
-export type SuggestionsResponse = SuggestionsSuccess | SuggestionsFailure;
-
-export function isSuggestionsFailure(response: SuggestionsResponse): response is SuggestionsFailure {
-  return "error" in response;
+  error: {
+    reason: string;
+    message: string;
+    /** One of `aiFailureKinds` when the route classified the failure. */
+    kind?: string;
+    retryAfterSeconds?: number | null;
+  };
 }
 
 function messageFrom(body: unknown, fallback: string): string {
@@ -47,6 +60,30 @@ function messageFrom(body: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+/**
+ * The route's error body as a typed failure. A body the route did not classify
+ * — including one that never reached the route — keeps its message and becomes
+ * `unknown`, which the page renders generically.
+ */
+function failureFrom(body: unknown, fallback: string): AiFailureError {
+  const message = messageFrom(body, fallback);
+
+  if (typeof body !== "object" || body === null || !("error" in body)) {
+    return new AiFailureError("unknown", message);
+  }
+
+  const { error } = body;
+  if (typeof error !== "object" || error === null) {
+    return new AiFailureError("unknown", message);
+  }
+
+  const kind = "kind" in error && isAiFailureKind(error.kind) ? error.kind : "unknown";
+  const retryAfterSeconds =
+    "retryAfterSeconds" in error && typeof error.retryAfterSeconds === "number" ? error.retryAfterSeconds : null;
+
+  return new AiFailureError(kind, message, { retryAfterSeconds });
 }
 
 function isSuggestion(value: unknown): value is Suggestion {
@@ -82,18 +119,20 @@ export async function requestSuggestions(body: SuggestionsRequestBody): Promise<
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+    // A hung request must end in a message, not in a spinner that never stops.
+    signal: AbortSignal.timeout(suggestionsDeadlineMs),
   });
 
   const payload: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(messageFrom(payload, `Generating suggestions failed (HTTP ${response.status}).`));
+    throw failureFrom(payload, `Generating suggestions failed (HTTP ${response.status}).`);
   }
 
   const parsed = payload as Partial<SuggestionsSuccess> | null;
 
   if (!parsed || !Array.isArray(parsed.suggestions) || !parsed.suggestions.every(isSuggestion)) {
-    throw new Error("The suggestions route returned an unexpected response.");
+    throw new AiFailureError("unknown", "The suggestions route returned an unexpected response.");
   }
 
   return {

@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { AiFailureNotice } from "@/components/ai/failure-notice";
+import { toRequestFailure, type AiFailureError } from "@/lib/ai/failures";
 import { browserUsageStore, recordModelRequest } from "@/lib/ai/usage";
 import type { CriterionKind, MatchReport } from "@/lib/match/types";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
@@ -162,7 +164,7 @@ export function SuggestionsPanel({
   const [dropped, setDropped] = useState<DroppedSuggestion[]>([]);
   const [groundingDropped, setGroundingDropped] = useState(0);
   const [generatedUnder, setGeneratedUnder] = useState<GeneratedUnder | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<AiFailureError | null>(null);
   const [decisions, setDecisions] = useState<DecisionMap>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<{ id: string; message: string } | null>(null);
@@ -176,7 +178,7 @@ export function SuggestionsPanel({
     }
 
     setWorking(true);
-    setError(null);
+    setFailure(null);
     setApplyError(null);
 
     const usage = browserUsageStore();
@@ -207,7 +209,9 @@ export function SuggestionsPanel({
         recordModelRequest(usage, new Date());
       }
 
-      setError(caught instanceof Error ? caught.message : "The adjustments could not be generated.");
+      // The class comes from the route; a request that never reached it becomes
+      // offline or timeout here, so the user still gets the step that fits.
+      setFailure(toRequestFailure(caught));
     } finally {
       setWorking(false);
     }
@@ -281,10 +285,14 @@ export function SuggestionsPanel({
             </Button>
           </div>
 
-          {error === null ? null : (
-            <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert">
-              {error}
-            </p>
+          {failure === null ? null : (
+            <AiFailureNotice
+              busy={working}
+              kind={failure.kind}
+              message={failure.message}
+              onRetry={generate}
+              retryAfterSeconds={failure.retryAfterSeconds}
+            />
           )}
 
           {generated ? (
