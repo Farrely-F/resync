@@ -71,6 +71,15 @@ export interface AppEnv {
   apiKeys: Partial<Record<AiProvider, string>>;
 }
 
+/**
+ * Variables that were renamed. Kept as a list so a stale `.env.local` fails
+ * loudly rather than quietly doing nothing.
+ */
+const renamedVariables = [
+  ["OPENROUTER_MODEL", "MODEL_ID"],
+  ["OPENROUTER_FALLBACK_MODELS", "FALLBACK_MODEL_IDS"],
+] as const;
+
 export class EnvError extends Error {
   readonly issues: readonly string[];
 
@@ -132,6 +141,15 @@ export function parseEnv(
   nodeEnv: string | undefined = process.env.NODE_ENV,
 ): AppEnv {
   const issues: string[] = [];
+
+  // A renamed variable that is still set is a configuration that silently stops
+  // working, which is the same class of failure as answering from fixtures while
+  // the user believes otherwise. Say so instead of ignoring it.
+  for (const [oldName, newName] of renamedVariables) {
+    if (nonEmpty(raw[oldName]) !== undefined) {
+      issues.push(`${oldName} was renamed to ${newName}; ${oldName} is no longer read`);
+    }
+  }
 
   const apiKeys: Partial<Record<AiProvider, string>> = {};
   for (const provider of aiProviders) {

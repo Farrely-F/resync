@@ -181,6 +181,24 @@ describe("parseEnv", () => {
     }
   });
 
+  it("refuses a renamed variable instead of ignoring it", () => {
+    // A stale .env.local would otherwise silently keep its old behaviour, which is
+    // how the app ended up answering from fixtures in the first place.
+    for (const [oldName, newName] of [
+      ["OPENROUTER_MODEL", "MODEL_ID"],
+      ["OPENROUTER_FALLBACK_MODELS", "FALLBACK_MODEL_IDS"],
+    ] as const) {
+      try {
+        parseEnv({ [oldName]: "anything", OPENROUTER_API_KEY: "sk" }, "development");
+        throw new Error("expected parseEnv to throw");
+      } catch (error) {
+        const issues = (error as EnvError).issues.join(" ");
+        expect(issues).toContain(oldName);
+        expect(issues).toContain(newName);
+      }
+    }
+  });
+
   it("reports every problem at once instead of only the first", () => {
     try {
       parseEnv({ AI_MODE: "nonsense" }, "production");

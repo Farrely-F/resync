@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AiFailureError, toAiFailure, type AiFailureKind } from "@/lib/ai/failures";
-import { failureStatusByKind } from "@/lib/ai/http";
+import { configFailureFrom, failureStatusByKind } from "@/lib/ai/http";
 import { MissingFixtureError } from "@/lib/ai/run";
 import { getEnv } from "@/lib/env";
 import { jdSchema } from "@/lib/jd/schema";
@@ -102,7 +102,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const env = getEnv();
+  let env;
+  try {
+    env = getEnv();
+  } catch (error) {
+    const failure = configFailureFrom(error);
+    if (failure) {
+      return NextResponse.json(failure.body, { status: failure.status });
+    }
+    throw error;
+  }
 
   try {
     const outcome = await generateGroundedSuggestions({ ...parsed.data, env });

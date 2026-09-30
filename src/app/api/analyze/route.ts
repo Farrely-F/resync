@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { AiFailureError, type AiFailureKind } from "@/lib/ai/failures";
-import { failureStatusByKind } from "@/lib/ai/http";
+import { configFailureFrom, failureStatusByKind } from "@/lib/ai/http";
 import { MissingFixtureError } from "@/lib/ai/run";
 import { getEnv } from "@/lib/env";
 import { jdSchema } from "@/lib/jd/schema";
@@ -68,7 +68,17 @@ function errorResponse(status: number, reason: string, message: string, extra: R
 }
 
 export async function GET() {
-  const env = getEnv();
+  let env;
+  try {
+    env = getEnv();
+  } catch (error) {
+    const failure = configFailureFrom(error);
+    if (failure) {
+      return NextResponse.json(failure.body, { status: failure.status });
+    }
+    throw error;
+  }
+
   return NextResponse.json({ aiMode: env.aiMode, provider: env.provider, model: env.model });
 }
 
@@ -85,7 +95,16 @@ export async function POST(request: Request) {
     return errorResponse(400, "invalid-request", "Send a JSON body with a resume and a structured job description.");
   }
 
-  const env = getEnv();
+  let env;
+  try {
+    env = getEnv();
+  } catch (error) {
+    const failure = configFailureFrom(error);
+    if (failure) {
+      return NextResponse.json(failure.body, { status: failure.status });
+    }
+    throw error;
+  }
 
   try {
     const evidence = await analyzeMatchEvidence({ resume: parsed.data.resume, jd: parsed.data.jd, env });

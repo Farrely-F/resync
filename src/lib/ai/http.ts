@@ -1,4 +1,5 @@
 import type { AiFailureKind } from "@/lib/ai/failures";
+import { EnvError } from "@/lib/env";
 
 /**
  * One wire vocabulary for a classified model failure.
@@ -25,5 +26,31 @@ export interface ClassifiedFailureBody {
     message: string;
     kind: AiFailureKind;
     retryAfterSeconds: number | null;
+  };
+}
+
+/**
+ * Turns a broken environment into the same failure shape the client already
+ * renders, instead of a bare 500 with an empty body.
+ *
+ * This matters because the likeliest cause is a stale variable in `.env.local`
+ * after a rename: the useful part is the message, and a blank response throws it
+ * away exactly when it is needed.
+ */
+export function configFailureFrom(error: unknown): { status: number; body: ClassifiedFailureBody } | null {
+  if (!(error instanceof EnvError)) {
+    return null;
+  }
+
+  return {
+    status: failureStatusByKind.config,
+    body: {
+      error: {
+        reason: "config",
+        message: `${error.issues.join("; ")}. Fix .env.local and restart the server; see .env.example.`,
+        kind: "config",
+        retryAfterSeconds: null,
+      },
+    },
   };
 }
