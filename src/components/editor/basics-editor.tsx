@@ -3,6 +3,7 @@
 import { useId } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
+import { CollapsibleSection } from "@/components/editor/collapsible-section";
 import { IconButton, TextField } from "@/components/editor/fields";
 import { addProfile, removeProfile, replaceProfile, setBasics, setLocation } from "@/components/editor/resume-ops";
 import { Button } from "@/components/ui/button";
@@ -18,14 +19,14 @@ import type { Resume } from "@/lib/resume/schema";
 export function BasicsEditor({ resume, onChange }: { resume: Resume; onChange: (next: Resume) => void }) {
   const { basics } = resume;
   const id = useId();
-  const headingId = `${id}-heading`;
 
   return (
-    <section aria-labelledby={headingId} className="rounded-lg border border-border/60 p-4">
-      <h2 className="text-sm font-semibold" id={headingId}>
-        Basics
-      </h2>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+    <CollapsibleSection
+      headingLevel={2}
+      summary="name and contact line"
+      title={<span>Basics</span>}
+    >
+      <p className="text-xs leading-relaxed text-muted-foreground">
         The name and contact line at the top of the document. Anything left empty is left out of the document rather
         than printed as a blank line.
       </p>
@@ -160,6 +161,6 @@ export function BasicsEditor({ resume, onChange }: { resume: Resume; onChange: (
           </Button>
         </div>
       </fieldset>
-    </section>
+    </CollapsibleSection>
   );
 }

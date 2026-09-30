@@ -1,7 +1,5 @@
 "use client";
 
-import { ArrowDown, ArrowUp } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -87,34 +85,5 @@ export function IconButton({
     >
       {children}
     </Button>
-  );
-}
-
-/**
- * Explicit move controls, so every reorder in the editor is reachable by tap.
- * Dragging is not offered at all: on a phone it is the gesture that fails most
- * often and it cannot be discovered.
- */
-export function MoveButtons({
-  label,
-  index,
-  count,
-  onMove,
-}: {
-  /** What is being moved, e.g. "highlight 2 of the Northwind entry". */
-  label: string;
-  index: number;
-  count: number;
-  onMove: (direction: -1 | 1) => void;
-}) {
-  return (
-    <div className="flex shrink-0 items-center gap-1">
-      <IconButton disabled={index === 0} label={`Move ${label} up`} onClick={() => onMove(-1)}>
-        <ArrowUp aria-hidden />
-      </IconButton>
-      <IconButton disabled={index === count - 1} label={`Move ${label} down`} onClick={() => onMove(1)}>
-        <ArrowDown aria-hidden />
-      </IconButton>
-    </div>
   );
 }

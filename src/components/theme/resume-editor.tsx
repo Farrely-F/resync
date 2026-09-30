@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Download } from "lucide-react";
 
-import { CompilePanel } from "@/components/compile/compile-panel";
+import { PreviewPanel } from "@/components/compile/preview-panel";
+import { useCompileEngine } from "@/components/compile/use-compile-engine";
 import { BasicsEditor } from "@/components/editor/basics-editor";
+import { CollapsibleSection } from "@/components/editor/collapsible-section";
 import { clearDraft, draftKeyFor, preferNewerRecord, readDraft, writeDraft } from "@/components/editor/draft-journal";
 import { normalizeResume } from "@/components/editor/resume-ops";
 import { SectionsEditor } from "@/components/editor/sections-editor";
@@ -16,7 +18,6 @@ import { RegenerateConfirm } from "@/components/latex-editor/regenerate-confirm"
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { deriveResumeTitle, type Resume } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
 import type { ResumeRecord } from "@/lib/storage/types";
@@ -52,6 +53,12 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
   const [state, setState] = useState<EditorState>({ status: "loading" });
   /** Bumped when the document is replaced rather than edited, to reset the editor's undo history. */
   const [sourceRevision, setSourceRevision] = useState(0);
+  /**
+   * Live preview is on by default, because watching the document change is the
+   * point of having it. It is a switch rather than a hidden behaviour: compiling
+   * costs CPU and battery, and a phone on a train is a good reason to stop it.
+   */
+  const [livePreview, setLivePreview] = useState(true);
   // The newest record, so an edit never has to read the value a render captured.
   const latest = useRef<ResumeRecord | null>(null);
 
@@ -215,6 +222,18 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
     setSourceRevision((revision) => revision + 1);
   }, [writeRecord]);
 
+  // Hooks cannot be conditional, so the engine is created before the branches
+  // below. While the record is still loading the document is empty and the live
+  // preview is off, which is what stops an empty document from ever compiling.
+  const documentTex = useMemo(
+    () => (state.status === "ready" ? documentSource(state.record).tex : ""),
+    [state],
+  );
+  const engine = useCompileEngine({
+    tex: documentTex,
+    auto: livePreview && state.status === "ready",
+  });
+
   if (state.status === "loading") {
     return (
       <p className="py-4 text-sm text-muted-foreground" role="status">
@@ -328,65 +347,80 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
       </div>
 
       {/*
-        `min-w-0` is load-bearing: a fieldset's user-agent style is
-        `min-width: min-content`, which would let this one grow past the page
-        column on a narrow phone and give the document a horizontal scroll.
+        The preview leads on a phone — the document is what the editor is for —
+        and becomes the sticky second column on a wide screen. `min-w-0` on both
+        columns is load-bearing: a fieldset's user-agent style is
+        `min-width: min-content`, which would otherwise let the fields column grow
+        past the page column on a narrow phone and give the document a horizontal
+        scroll.
       */}
-      <fieldset className="m-0 min-w-0 border-0 p-0" disabled={!editable} onBlur={() => void flush()}>
-        <legend className="sr-only">Resume fields</legend>
-        <div className="flex flex-col gap-6">
-          <BasicsEditor onChange={applyResume} resume={record.resume} />
-          <SectionsEditor onChange={applyResume} resume={record.resume} />
-        </div>
-      </fieldset>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-wrap items-center gap-2">
-            <h2 className="font-heading text-base leading-normal font-medium">LaTeX source</h2>
-            {editable ? null : <ManualModeBadge />}
-          </CardTitle>
-          <CardAction>
-            <Button className="h-11 sm:h-9" onClick={downloadTex} size="sm" variant="outline">
-              <Download aria-hidden />
-              Download .tex
-            </Button>
-          </CardAction>
-          <CardDescription>
-            {resumeDocument.tex.split("\n").length} lines, {(resumeDocument.tex.length / 1024).toFixed(1)} kB,{" "}
-            {editable
-              ? `generated from your data with the ${themeName} theme.`
-              : "the hand-edited document saved with this resume."}
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Editing this text by hand takes the resume off the generated path: the document becomes yours, the fields
-            become read-only, and nothing rewrites it until you regenerate it from your data.
-          </p>
-
-          {droppedCharacters.length > 0 ? (
-            <Alert variant="destructive">
-              <AlertTitle>The engine cannot typeset everything in this resume</AlertTitle>
-              <AlertDescription>
-                {droppedCharacters.length} character
-                {droppedCharacters.length === 1 ? "" : "s"} were left out:{" "}
-                <span className="font-mono">{droppedCharacters.join(" ")}</span>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
-          <LatexSourceEditor
-            label="LaTeX source"
-            onChange={editSource}
-            revision={sourceRevision}
-            value={resumeDocument.tex}
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+        <div className="order-first min-w-0 lg:sticky lg:top-4 lg:order-2 lg:self-start">
+          <PreviewPanel
+            engine={engine}
+            live={livePreview}
+            onLiveChange={setLivePreview}
+            source={resumeDocument.source}
+            tex={resumeDocument.tex}
+            themeName={themeName}
+            title={title}
           />
-        </CardContent>
-      </Card>
+        </div>
 
-      <CompilePanel record={record} themeName={themeName} title={title} />
+        <div className="order-2 flex min-w-0 flex-col gap-6 lg:order-1">
+          <fieldset className="m-0 min-w-0 border-0 p-0" disabled={!editable} onBlur={() => void flush()}>
+            <legend className="sr-only">Resume fields</legend>
+            <div className="flex flex-col gap-6">
+              <BasicsEditor onChange={applyResume} resume={record.resume} />
+              <SectionsEditor onChange={applyResume} resume={record.resume} />
+            </div>
+          </fieldset>
+
+          <CollapsibleSection
+            actions={
+              <>
+                {editable ? null : <ManualModeBadge />}
+                <Button className="h-11" onClick={downloadTex} size="sm" variant="outline">
+                  <Download aria-hidden />
+                  Download .tex
+                </Button>
+              </>
+            }
+            headingLevel={2}
+            summary={`${resumeDocument.tex.split("\n").length} lines, ${(
+              resumeDocument.tex.length / 1024
+            ).toFixed(1)} kB`}
+            title="LaTeX source"
+          >
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Editing this text by hand takes the resume off the generated path: the document becomes yours, the fields
+              become read-only, and nothing rewrites it until you regenerate it from your data.
+            </p>
+
+            {droppedCharacters.length > 0 ? (
+              <div className="mt-3">
+                <Alert variant="destructive">
+                  <AlertTitle>The engine cannot typeset everything in this resume</AlertTitle>
+                  <AlertDescription>
+                    {droppedCharacters.length} character
+                    {droppedCharacters.length === 1 ? "" : "s"} were left out:{" "}
+                    <span className="font-mono">{droppedCharacters.join(" ")}</span>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            ) : null}
+
+            <div className="mt-3">
+              <LatexSourceEditor
+                label="LaTeX source"
+                onChange={editSource}
+                revision={sourceRevision}
+                value={resumeDocument.tex}
+              />
+            </div>
+          </CollapsibleSection>
+        </div>
+      </div>
     </div>
   );
 }

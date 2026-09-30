@@ -95,6 +95,19 @@ trigger rather than Base UI's default of aligning the selected item over it.
 - **PDF output**: real LaTeX compiled in the browser, off the main thread, from engine assets (~127 MB) fetched at
   build time and cached in Cache Storage. Nothing downloads without explicit consent.
 - **Themes** may only use packages present in the bundled minimal TeX Live scheme, enforced by a compile check.
+- **The editor's lists reorder by dragging a handle**, and the keyboard is an equal path rather than a fallback:
+  focus a handle, press space, use the arrow keys, press space to drop. Every list — the sections, the entries inside
+  one section, the lines inside one entry — is its own drag context, so an item can never be dropped into a different
+  list; that move has no meaning in the data model. Touch needs a short hold before a drag starts, so a swipe that
+  begins on a handle still scrolls the page.
+- **Collapsed sections in the editor are a reading aid, so that state is never stored**: opening a resume never hides
+  a section the reader closed last time. Hiding a section is a different action, and it is the one that takes the
+  section out of the generated document while keeping its entries.
+- **Live preview compiles the document of record in the browser**, on a pause after typing rather than per keystroke,
+  and only when the engine has already been consented to and cached — a field change can never start a 127 MB download
+  or raise a consent prompt. There is one compile state behind the preview and the download, so the two cannot
+  disagree; a compile in progress keeps only the newest document; and when the PDF on screen is older than the
+  document, it says so instead of looking current. The Live switch turns the whole thing off.
 
 ## Licence
 

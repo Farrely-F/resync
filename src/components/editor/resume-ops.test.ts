@@ -8,7 +8,7 @@ import {
   moveBullet,
   moveEntry,
   moveItem,
-  moveSection,
+  reorderSection,
   normalizeResume,
   removeBullet,
   removeEntry,
@@ -63,7 +63,9 @@ describe("section order and visibility", () => {
 
   it("reorders a section and the document with it", () => {
     const before = resume({ work: [{ name: "Northwind" }], education: [{ institution: "Bristol" }] });
-    const after = moveSection(before, "education", -1);
+    // Education is second in the schema; dropping it on the first position is what
+    // a drag reports, and the generated document has to follow the list.
+    const after = reorderSection(before, 1, 0);
 
     expect(after.sections.map((section) => section.id).slice(0, 2)).toEqual(["education", "work"]);
 
@@ -71,11 +73,25 @@ describe("section order and visibility", () => {
     expect(tex.indexOf("\\resumesection{Education}")).toBeLessThan(tex.indexOf("\\resumesection{Experience}"));
   });
 
-  it("leaves the order alone when a section is already at the edge", () => {
+  it("moves a section down as well as up", () => {
     const before = resume({ work: [{ name: "Northwind" }] });
 
-    expect(moveSection(before, "work", -1).sections.map((section) => section.id)).toEqual([...sectionIds]);
-    expect(moveSection(before, "languages", 1).sections.map((section) => section.id)).toEqual([...sectionIds]);
+    expect(reorderSection(before, 0, 2).sections.map((section) => section.id).slice(0, 3)).toEqual([
+      "education",
+      "skills",
+      "work",
+    ]);
+  });
+
+  it("leaves the resume untouched for a drop at the same place or out of range", () => {
+    const before = resume({ work: [{ name: "Northwind" }] });
+
+    // Same object, not a copy: the editor writes state on every drop, so a no-op
+    // must not look like an edit to anything watching for changes.
+    expect(reorderSection(before, 0, 0)).toBe(before);
+    expect(reorderSection(before, 0, sectionIds.length)).toBe(before);
+    expect(reorderSection(before, -1, 1)).toBe(before);
+    expect(reorderSection(before, 2, sectionIds.length + 5)).toBe(before);
   });
 
   it("takes a hidden section out of the document and puts it back", () => {

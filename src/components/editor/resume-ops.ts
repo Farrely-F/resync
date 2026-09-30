@@ -76,16 +76,20 @@ export function setSectionVisible(resume: Resume, id: SectionId, visible: boolea
   };
 }
 
-/** Moves a section one place: `direction` is -1 for up and 1 for down. */
-export function moveSection(resume: Resume, id: SectionId, direction: -1 | 1): Resume {
+/**
+ * Moves a section to another position in the list: `to` is the index the section
+ * ends up at, which is what a drop reports. Out-of-range indices leave the resume
+ * alone rather than clamping, because a caller with a stale index is a bug that
+ * should not move the reader's document.
+ */
+export function reorderSection(resume: Resume, from: number, to: number): Resume {
   const sections = withSections(resume).sections;
-  const from = sections.findIndex((section) => section.id === id);
 
-  if (from === -1) {
+  if (from === to || from < 0 || to < 0 || from >= sections.length || to >= sections.length) {
     return resume;
   }
 
-  return { ...resume, sections: moveItem(sections, from, from + direction) };
+  return { ...resume, sections: moveItem(sections, from, to) };
 }
 
 /** A new bullet, left blank for the user to type into. */
