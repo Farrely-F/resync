@@ -227,6 +227,51 @@ describe("runStructured under a throttled or broken provider", () => {
     expect(good.doGenerateCalls).toHaveLength(1);
   });
 
+  it("moves to the next model when a provider rejects the model's malformed JSON", async () => {
+    const good = modelReturning({ headline: "Backend Engineer" });
+    const malformed = modelFailing(
+      new APICallError({
+        message: "Generated JSON does not match the expected schema.",
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 400,
+        responseBody: JSON.stringify({ error: { code: "json_validate_failed", type: "invalid_request_error" } }),
+        isRetryable: false,
+      }),
+    );
+
+    const result = await runStructured({
+      ...liveCall,
+      env: fallbackEnv,
+      backoff: quickPolicy,
+      modelFor: (target) => (target.modelId === "fallback/one" ? good : malformed),
+    });
+
+    expect(result).toEqual({ headline: "Backend Engineer" });
+    expect(malformed.doGenerateCalls).toHaveLength(1);
+    expect(good.doGenerateCalls).toHaveLength(1);
+  });
+
+  it("rethrows the malformed-JSON error unchanged when no model is left to try", async () => {
+    const error = new APICallError({
+      message: "Generated JSON does not match the expected schema.",
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 400,
+      responseBody: JSON.stringify({ error: { code: "json_validate_failed" } }),
+      isRetryable: false,
+    });
+
+    const failure = await runStructured({
+      ...liveCall,
+      env: fallbackEnv,
+      backoff: quickPolicy,
+      modelFor: () => modelFailing(error),
+    }).catch((caught: unknown) => caught);
+
+    expect(failure).toBe(error);
+  });
+
   it("reports a provider failure once the last fallback has also failed", async () => {
     const model = modelFailing(providerError(503));
 

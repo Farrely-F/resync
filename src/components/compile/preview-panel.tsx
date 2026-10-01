@@ -218,9 +218,10 @@ function PreviewPanelSurface({
           <Alert variant="destructive">
             <AlertTitle>The TeX engine files are not on this server</AlertTitle>
             <AlertDescription>
-              They are gitignored and fetched at build time, so a fresh checkout does not have them. Run{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">npm run fetch:tex</code> and reload. The
-              file that failed was <span className="font-mono text-xs">{phase.asset}</span>.
+              They are gitignored, so a fresh checkout does not have them. Run{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">npm run fetch:tex</code> and reload, or
+              set <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">NEXT_PUBLIC_TEX_ASSETS_URL</code> to
+              a host that serves them. The file that failed was <span className="font-mono text-xs">{phase.asset}</span>.
             </AlertDescription>
           </Alert>
         </div>

@@ -63,6 +63,19 @@ export function engineAssetUrl(name: string): string {
 }
 
 /**
+ * Where the bytes are downloaded from. Defaults to our own origin; set
+ * `NEXT_PUBLIC_TEX_ASSETS_URL` (e.g. a Cloudflare R2 public bucket) to download
+ * them from elsewhere. The cross-origin host needs a CORS rule allowing GET from
+ * the app. Only the download moves: Cache Storage keys and the worker shim stay
+ * on `engineAssetUrl`, and the shim is a `blob:` worker, so the same-origin
+ * Worker rule is not involved.
+ */
+export function engineAssetSourceUrl(name: string): string {
+  const host = process.env.NEXT_PUBLIC_TEX_ASSETS_URL?.trim().replace(/\/+$/, "");
+  return host ? `${host}/${name}` : engineAssetUrl(name);
+}
+
+/**
  * Content type per extension. The engine compiles `busytex.wasm` with
  * `WebAssembly.compileStreaming`, which rejects a response that is not served as
  * `application/wasm`; we rebuild the cached response from bytes, so the type has
@@ -156,7 +169,7 @@ export class EngineAssetSizeError extends Error {
 }
 
 async function streamAsset(asset: EngineAsset, onProgress?: (progress: DownloadProgress) => void): Promise<Blob> {
-  const response = await fetch(engineAssetUrl(asset.name));
+  const response = await fetch(engineAssetSourceUrl(asset.name));
 
   if (response.status === 404 || response.status === 410) {
     throw new EngineAssetsMissingError(asset.name, response.status);

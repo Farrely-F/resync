@@ -119,10 +119,27 @@ describe("parseEnv", () => {
   it("adds the other configured provider as a last resort, which is the point of two keys", () => {
     const env = parseEnv({ OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk" }, "development");
 
-    expect(env.provider).toBe("openrouter");
-    expect(env.fallbacks).toContainEqual({ provider: "groq", modelId: providerDefaults.groq.model });
+    expect(env.provider).toBe("groq");
+    expect(env.fallbacks).toContainEqual({ provider: "openrouter", modelId: providerDefaults.openrouter.model });
     // The primary provider's own fallbacks stay first.
-    expect(env.fallbacks[0].provider).toBe("openrouter");
+    expect(env.fallbacks[0].provider).toBe("groq");
+  });
+
+  it("orders several keys groq > openrouter > fireworks without AI_PROVIDER", () => {
+    const env = parseEnv(
+      { FIREWORKS_API_KEY: "fw", OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk" },
+      "development",
+    );
+    const order = [env.provider, ...env.fallbacks.map((target) => target.provider)];
+
+    expect([...new Set(order)]).toEqual(["groq", "openrouter", "fireworks"]);
+  });
+
+  it("does not default to a provider that has no key", () => {
+    const env = parseEnv({ FIREWORKS_API_KEY: "fw", OPENROUTER_API_KEY: "sk" }, "development");
+
+    expect(env.provider).toBe("openrouter");
+    expect(env.fallbacks.at(-1)).toEqual({ provider: "fireworks", modelId: providerDefaults.fireworks.model });
   });
 
   it("puts the chosen provider first and the other one after it", () => {
@@ -177,7 +194,7 @@ describe("parseEnv", () => {
 
   it("obeys an explicit fallback list exactly, without appending the other provider", () => {
     const env = parseEnv(
-      { OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk", FALLBACK_MODEL_IDS: "only/this" },
+      { AI_PROVIDER: "openrouter", OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk", FALLBACK_MODEL_IDS: "only/this" },
       "development",
     );
 
