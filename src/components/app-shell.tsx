@@ -26,10 +26,23 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function isResumeEditor(pathname: string) {
+  return /^\/resumes\/[^/]+\/edit\/?$/.test(pathname);
+}
+
 function Wordmark() {
   return (
-    <Link aria-label="resync, home" className="group flex items-center gap-2" href="/">
-      <svg aria-hidden className="mark size-[22px] overflow-visible" fill="none" viewBox="0 0 22 22">
+    <Link
+      aria-label="resync, home"
+      className="group flex items-center gap-2"
+      href="/"
+    >
+      <svg
+        aria-hidden
+        className="mark size-[22px] overflow-visible"
+        fill="none"
+        viewBox="0 0 22 22"
+      >
         <rect
           className="page-back"
           height="14"
@@ -52,10 +65,17 @@ function Wordmark() {
             x="8"
             y="6.5"
           />
-          <path d="M10.5 10.5h6M10.5 13.5h4" stroke="var(--primary)" strokeLinecap="round" strokeWidth="1.5" />
+          <path
+            d="M10.5 10.5h6M10.5 13.5h4"
+            stroke="var(--primary)"
+            strokeLinecap="round"
+            strokeWidth="1.5"
+          />
         </g>
       </svg>
-      <span className="font-display text-[26px] leading-none tracking-[-0.01em] italic">resync</span>
+      <span className="font-display text-[26px] leading-none tracking-[-0.01em] italic">
+        resync
+      </span>
     </Link>
   );
 }
@@ -90,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         aria-current={active ? "page" : undefined}
                         className={cn(
                           "relative block rounded-full px-4 py-1.5 font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground",
-                          active && "text-foreground"
+                          active && "text-foreground",
                         )}
                         href={href}
                       >
@@ -110,7 +130,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </LayoutGroup>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-32 pt-8 md:px-6 md:pb-16 md:pt-12">{children}</main>
+        <main
+          className={cn(
+            "mx-auto w-full flex-1 px-5 pb-32 pt-8 md:px-6 md:pb-16 md:pt-12",
+            // The editor puts the document beside the fields; at the reading
+            // width the PDF is shrunk past legibility.
+            isResumeEditor(pathname) ? "max-w-360" : "max-w-5xl",
+          )}
+        >
+          {children}
+        </main>
 
         <LayoutGroup id="dock">
           <nav
@@ -134,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       aria-current={active ? "page" : undefined}
                       className={cn(
                         "relative flex min-h-12 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground transition-colors",
-                        active && "text-primary"
+                        active && "text-primary",
                       )}
                       href={href}
                     >

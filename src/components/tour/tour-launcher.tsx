@@ -21,8 +21,14 @@ export function TourLauncher({ label = "Take the tour" }: { label?: string }) {
   }
 
   return (
-    <Button className="h-11 sm:h-9" onClick={() => start()} size="sm" type="button" variant="ghost">
-      <Compass aria-hidden />
+    <Button
+      className="h-11 gap-1.5 rounded-full bg-card px-3.5 text-[13px] text-muted-foreground ring-1 ring-foreground/[0.08] shadow-(--shadow-rest) transition-[box-shadow,color] duration-300 hover:bg-card hover:text-foreground hover:shadow-(--shadow-lift) sm:h-8"
+      onClick={() => start()}
+      size="sm"
+      type="button"
+      variant="ghost"
+    >
+      <Compass aria-hidden className="size-3.5" />
       {label}
     </Button>
   );

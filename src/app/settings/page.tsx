@@ -10,7 +10,7 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col gap-6 py-4">
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <h1 className="title">Settings</h1>
           <TourLauncher />
         </div>

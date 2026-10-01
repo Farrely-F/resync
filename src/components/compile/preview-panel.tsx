@@ -300,7 +300,7 @@ function PreviewPanelSurface({
                 : null}
             </p>
             <iframe
-              className="h-80 w-full rounded-xl bg-white ring-1 ring-foreground/[0.08] shadow-(--shadow-rest) sm:h-[28rem] lg:h-[36rem]"
+              className="h-80 w-full rounded-xl bg-white ring-1 ring-foreground/[0.08] shadow-(--shadow-rest) sm:h-[40rem] lg:h-[max(36rem,calc(100dvh-14rem))]"
               src={lastPdf.url}
               title={`Compiled PDF: ${title}`}
             />

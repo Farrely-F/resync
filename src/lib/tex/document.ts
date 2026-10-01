@@ -1,3 +1,4 @@
+import { resolveLayout } from "@/lib/layout";
 import type { Resume } from "@/lib/resume/schema";
 import type { ResumeRecord } from "@/lib/storage/types";
 import { renderResumeForThemeId } from "@/lib/tex/generate";
@@ -41,7 +42,7 @@ export function documentSource(record: ResumeRecord): ResumeDocument {
     return { tex: record.manualTex, source: "manual" };
   }
 
-  return { tex: renderResumeForThemeId(record.resume, record.themeId).tex, source: "generated" };
+  return { tex: renderResumeForThemeId(record.resume, record.themeId, resolveLayout(record.layout)).tex, source: "generated" };
 }
 
 /**

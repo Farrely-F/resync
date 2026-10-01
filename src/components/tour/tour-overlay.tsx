@@ -195,8 +195,9 @@ export function TourOverlay({
         aria-modal="true"
         className={cn(
           "absolute flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-(--shadow-float) ring-1 ring-foreground/10",
-          "inset-x-3 bottom-24",
-          placement === null ? "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[380px] sm:-translate-x-1/2 sm:-translate-y-1/2" : null,
+          // The phone sheet's own anchors: kept off a positioned popover, where a
+          // `bottom` here would stretch it from its `top` to the bottom of the screen.
+          placement === null ? "inset-x-3 bottom-24 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[380px] sm:-translate-x-1/2 sm:-translate-y-1/2" : null,
         )}
         ref={dialog}
         role="dialog"

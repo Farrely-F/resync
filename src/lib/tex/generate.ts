@@ -1,4 +1,5 @@
 import { withSections, type Resume, type SectionId } from "@/lib/resume/schema";
+import { defaultLayout, geometryOptions, type PageLayout } from "@/lib/layout";
 import { resolveTheme, type Theme } from "@/lib/themes";
 import { escapeLatex } from "@/lib/tex/escape";
 import { allowedDocumentClass } from "@/lib/tex/packages";
@@ -62,27 +63,45 @@ function orderedPackages(theme: Theme): string[] {
   return [...theme.packages].sort((a, b) => Number(a === "hyperref") - Number(b === "hyperref"));
 }
 
-function preamble(theme: Theme, density: Density): string[] {
+function preamble(theme: Theme, density: Density, layout: PageLayout): string[] {
   const options: Record<string, string> = {
     fontenc: "T1",
-    geometry: `margin=${theme.margin}`,
+    geometry: geometryOptions(layout, theme.margin),
     hyperref: "hidelinks",
     ...theme.packageOptions,
   };
 
+  const space = `\\par\\addvspace{${density.sectionSpace}}%`;
   const heading = {
     rule: `\\newcommand{\\resumesection}[1]{%
-  \\par\\addvspace{${density.sectionSpace}}%
+  ${space}
   \\noindent{\\large\\bfseries #1}\\par\\nobreak
   \\vspace{2pt}\\hrule height 0.6pt\\nobreak\\vspace{4pt}}`,
     "accent-rule": `\\newcommand{\\resumesection}[1]{%
-  \\par\\addvspace{${density.sectionSpace}}%
+  ${space}
   \\noindent{\\color{accent}\\large\\bfseries #1}\\par\\nobreak
   \\vspace{2pt}{\\color{accent}\\hrule height 0.8pt}\\nobreak\\vspace{4pt}}`,
     "small-caps": `\\newcommand{\\resumesection}[1]{%
-  \\par\\addvspace{${density.sectionSpace}}%
+  ${space}
   \\noindent{\\bfseries\\scshape #1}\\par\\nobreak
   \\vspace{1pt}\\hrule height 0.4pt\\nobreak\\vspace{3pt}}`,
+    "accent-small-caps": `\\newcommand{\\resumesection}[1]{%
+  ${space}
+  \\noindent{\\color{accent}\\large\\scshape #1}\\par\\nobreak
+  \\vspace{1pt}{\\color{accent}\\hrule height 0.4pt}\\nobreak\\vspace{4pt}}`,
+    "caps-rule": `\\newcommand{\\resumesection}[1]{%
+  ${space}
+  \\noindent{\\bfseries\\MakeUppercase{#1}}\\par\\nobreak
+  \\vspace{2pt}\\hrule height 0.6pt\\nobreak\\vspace{4pt}}`,
+    "accent-caps": `\\newcommand{\\resumesection}[1]{%
+  ${space}
+  \\noindent{\\color{accent}\\bfseries\\MakeUppercase{#1}}\\par\\nobreak\\vspace{4pt}}`,
+    plain: `\\newcommand{\\resumesection}[1]{%
+  ${space}
+  \\noindent{\\large\\bfseries #1}\\par\\nobreak\\vspace{4pt}}`,
+    "accent-block": `\\newcommand{\\resumesection}[1]{%
+  ${space}
+  \\noindent\\colorbox{accent}{\\parbox{\\dimexpr\\linewidth-2\\fboxsep\\relax}{\\color{white}\\bfseries\\MakeUppercase{#1}}}\\par\\nobreak\\vspace{4pt}}`,
   }[theme.heading];
 
   return [
@@ -91,6 +110,7 @@ function preamble(theme: Theme, density: Density): string[] {
       options[name] ? `\\usepackage[${options[name]}]{${name}}` : `\\usepackage{${name}}`,
     ),
     ...(theme.accent ? [`\\definecolor{accent}{rgb}{${theme.accent}}`] : []),
+    ...(theme.font === "sans" ? ["\\renewcommand{\\familydefault}{\\sfdefault}"] : []),
     "\\pagestyle{empty}",
     "\\setlength{\\parindent}{0pt}",
     `\\setlength{\\parskip}{${density.parskip}}`,
@@ -134,7 +154,7 @@ function renderHeader(resume: Resume, theme: Theme, escape: Escape): string | nu
   ];
   const contactLine = joinParts(contacts);
 
-  const accentOn = theme.accentHeader && theme.accent !== null;
+  const accentOn = theme.accentHeader && theme.accent !== null && theme.header !== "banner";
   const accent = (tex: string) => (accentOn ? `{\\color{accent}${tex}}` : tex);
 
   if (!name.trim() && !label && !contactLine) {
@@ -159,13 +179,28 @@ function renderHeader(resume: Resume, theme: Theme, escape: Escape): string | nu
     ].join("\n");
   }
 
-  const centered = [
+  const lines = [
     name.trim() ? accent(`{\\LARGE\\bfseries ${escape(name)}}`) : null,
     label ? accent(`{\\large ${escape(label)}}`) : null,
     contactLine ? accent(contactLine) : null,
   ].filter((line): line is string => line !== null);
 
-  return ["\\begin{center}", centered.join("\\\\[4pt]\n"), "\\end{center}"].join("\n");
+  const stacked = lines.join("\\\\[4pt]\n");
+
+  if (theme.header === "left") {
+    return ["\\begin{flushleft}", stacked, "\\end{flushleft}"].join("\n");
+  }
+
+  if (theme.header === "banner") {
+    // White on the accent: the banner is the only place the text colour is overridden.
+    return [
+      "\\noindent\\colorbox{accent}{\\parbox{\\dimexpr\\linewidth-2\\fboxsep\\relax}{\\color{white}%",
+      stacked,
+      "}}\\par",
+    ].join("\n");
+  }
+
+  return ["\\begin{center}", stacked, "\\end{center}"].join("\n");
 }
 
 function renderHighlights(highlights: string[], escape: Escape): string | null {
@@ -302,7 +337,7 @@ function renderSection(id: SectionId, resume: Resume, theme: Theme, escape: Esca
   }
 }
 
-export function renderResumeReport(resume: Resume, theme: Theme): RenderResult {
+export function renderResumeReport(resume: Resume, theme: Theme, layout: PageLayout = defaultLayout): RenderResult {
   const dropped = new Set<string>();
   const escape: Escape = (value) => escapeLatex(value, (character) => dropped.add(character));
   const density = densities[theme.density];
@@ -322,7 +357,7 @@ export function renderResumeReport(resume: Resume, theme: Theme): RenderResult {
     .concat(sections);
 
   const tex = [
-    ...preamble(theme, density),
+    ...preamble(theme, density, layout),
     "\\begin{document}",
     "",
     blocks.join("\n\n"),
@@ -335,13 +370,17 @@ export function renderResumeReport(resume: Resume, theme: Theme): RenderResult {
 }
 
 /** The generated LaTeX for a resume. */
-export function renderResume(resume: Resume, theme: Theme): string {
-  return renderResumeReport(resume, theme).tex;
+export function renderResume(resume: Resume, theme: Theme, layout: PageLayout = defaultLayout): string {
+  return renderResumeReport(resume, theme, layout).tex;
 }
 
 /** Same document, selected by stored `themeId`; unknown ids fall back to the default theme. */
-export function renderResumeForThemeId(resume: Resume, themeId: string | null | undefined): RenderResult {
-  return renderResumeReport(resume, resolveTheme(themeId));
+export function renderResumeForThemeId(
+  resume: Resume,
+  themeId: string | null | undefined,
+  layout: PageLayout = defaultLayout,
+): RenderResult {
+  return renderResumeReport(resume, resolveTheme(themeId), layout);
 }
 
 /** Download name for the generated document. */

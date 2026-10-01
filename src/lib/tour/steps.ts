@@ -99,8 +99,8 @@ const editorTour: Tour = {
     },
     {
       target: "editor-theme",
-      title: "Theme",
-      body: "Pick a style and the LaTeX and PDF are regenerated from your data with it. The themes are ATS-friendly: one column, real text, no tables.",
+      title: "Theme and page",
+      body: "Pick one of ten styles, then set the paper size and margin. The LaTeX and PDF are regenerated from your data with them. The themes are ATS-friendly: one column, real text, no tables.",
     },
     {
       target: "editor-latex",

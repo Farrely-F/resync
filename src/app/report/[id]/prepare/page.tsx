@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { CoverLetterPanel } from "@/components/documents/cover-letter-panel";
 import { InterviewPrepPanel } from "@/components/documents/interview-prep-panel";
+import { ReportInputs } from "@/components/match/report-inputs";
 import { OutreachPanel } from "@/components/documents/outreach-panel";
 import { privateMetadata } from "@/lib/seo";
 
@@ -36,6 +37,8 @@ export default async function PreparePage({ params }: PageProps<"/report/[id]/pr
           repeating the posting. Each document is written on demand and stored in this browser.
         </p>
       </div>
+
+      <ReportInputs reportId={id} />
 
       <CoverLetterPanel reportId={id} />
       <OutreachPanel reportId={id} />

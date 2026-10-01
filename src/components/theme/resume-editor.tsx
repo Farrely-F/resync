@@ -16,6 +16,7 @@ import { saveDebounceMs, useDebouncedSave, type SaveStatus } from "@/components/
 import { LatexSourceEditor } from "@/components/latex-editor/latex-source-editor";
 import { ManualModeBadge } from "@/components/latex-editor/manual-mode-badge";
 import { RegenerateConfirm } from "@/components/latex-editor/regenerate-confirm";
+import { PageLayoutControls } from "@/components/theme/page-layout-controls";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { TourLauncher } from "@/components/tour/tour-launcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { deriveResumeTitle, type Resume } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
 import type { ResumeRecord } from "@/lib/storage/types";
+import { paperSizes, resolveLayout, type PageLayout } from "@/lib/layout";
 import { resolveTheme, themes } from "@/lib/themes";
 import { applyFieldEdit, applyHandEdit, documentSource, regenerateFromData } from "@/lib/tex/document";
 import { renderResumeForThemeId, texFileName } from "@/lib/tex/generate";
@@ -222,6 +224,17 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
     [writeRecord],
   );
 
+  const changeLayout = useCallback(
+    (layout: PageLayout) => {
+      const current = latest.current;
+      if (!current) {
+        return;
+      }
+      writeRecord({ ...current, layout, updatedAt: new Date().toISOString() });
+    },
+    [writeRecord],
+  );
+
   /**
    * A hand edit of the source.
    *
@@ -296,7 +309,8 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
       return [];
     }
 
-    return renderResumeForThemeId(state.record.resume, state.record.themeId).droppedCharacters;
+    return renderResumeForThemeId(state.record.resume, state.record.themeId, resolveLayout(state.record.layout))
+      .droppedCharacters;
   }, [state]);
   const engine = useCompileEngine({
     tex: deferredTex,
@@ -346,6 +360,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
   // reach it, so the fields are shown read-only with the reason next to them.
   const editable = record.mode !== "manual";
   const themeName = resolveTheme(record.themeId).name;
+  const layout = resolveLayout(record.layout);
   // One rule decides which text is the document, and the compile panel is handed
   // the same record so it resolves to the same text.
   const resumeDocument = documentSource(record);
@@ -369,9 +384,11 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
           </Link>{" "}
           / <span className="font-mono">{record.id}</span>
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="title">{title}</h1>
-          {editable ? null : <ManualModeBadge />}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h1 className="title">{title}</h1>
+            {editable ? null : <ManualModeBadge />}
+          </div>
           <TourLauncher />
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -406,8 +423,6 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         open={pendingEdit !== null}
       />
 
-      <ThemePicker onSelect={selectTheme} selectedId={record.themeId} themes={themes} />
-
       <div className="flex flex-col gap-2">
         <p aria-live="polite" className="text-xs text-muted-foreground">
           {saveCopy[status]}
@@ -431,7 +446,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         past the page column on a narrow phone and give the document a horizontal
         scroll.
       */}
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <div className="order-first min-w-0 lg:sticky lg:top-4 lg:order-2 lg:self-start" data-tour="editor-preview">
           <PreviewPanel
             engine={engine}
@@ -446,6 +461,23 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         </div>
 
         <div className="order-2 flex min-w-0 flex-col gap-6 lg:order-1">
+          <CollapsibleSection
+            headingLevel={2}
+            summary={`${themeName} · ${paperSizes.find((paper) => paper.id === layout.paper)?.name}`}
+            title="Appearance"
+            tourId="editor-theme"
+          >
+            <div className="flex flex-col gap-5">
+              <ThemePicker onSelect={selectTheme} selectedId={record.themeId} themes={themes} />
+              <PageLayoutControls
+                layout={layout}
+                manual={!editable}
+                onChange={changeLayout}
+                themeMargin={resolveTheme(record.themeId).margin}
+              />
+            </div>
+          </CollapsibleSection>
+
           <Tabs onValueChange={(value) => setSurface(value as "fields" | "latex")} value={surface ?? "fields"}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <TabsList aria-label="Editing surface" className="h-11 sm:h-9">

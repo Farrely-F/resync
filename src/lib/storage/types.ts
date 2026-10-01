@@ -1,6 +1,7 @@
 import type { DocumentRecord } from "@/lib/documents/types";
 import type { Jd } from "@/lib/jd/schema";
 import type { MatchReport } from "@/lib/match/types";
+import type { PageLayout } from "@/lib/layout";
 import type { Resume } from "@/lib/resume/schema";
 
 /**
@@ -20,6 +21,8 @@ export interface ResumeRecord {
   /** Text extracted from the original document; the source for re-parsing. */
   plainText: string;
   themeId: string;
+  /** Paper and margin. Absent on records saved before layouts existed: read it with `resolveLayout`. */
+  layout?: PageLayout;
   /** `manual` means the user edited the generated LaTeX; it must not be rewritten from data. */
   mode: ResumeMode;
   /** Hand-edited LaTeX. Only meaningful when `mode` is `manual`. */

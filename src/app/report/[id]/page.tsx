@@ -17,13 +17,15 @@ export default async function ReportPage({ params }: PageProps<"/report/[id]">) 
   return (
     <div className="flex flex-col gap-4 py-4">
       <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <h1 className="title">Match report</h1>
-          <TourLauncher />
-          <Link className={cn(buttonVariants({ variant: "outline" }), "h-11 sm:h-9")} href={`/report/${id}/prepare`}>
-            <PenLine aria-hidden />
-            Write a letter, a message or prep
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <TourLauncher />
+            <Link className={cn(buttonVariants({ variant: "outline" }), "h-11 sm:h-9")} href={`/report/${id}/prepare`}>
+              <PenLine aria-hidden />
+              Write a letter, a message or prep
+            </Link>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground">
           Report <span className="font-mono text-foreground">{id}</span>
