@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearEngineCache,
@@ -9,6 +9,7 @@ import {
   EngineAssetSizeError,
   engineAssetTotalBytes,
   engineAssetUrl,
+  engineAssetSourceUrl,
   engineAssets,
   engineCacheName,
   engineCacheStatus,
@@ -90,6 +91,42 @@ describe("engine asset manifest", () => {
     expect(contentTypeForAsset("busytex.js")).toContain("javascript");
     expect(contentTypeForAsset("texlive-basic.data")).toBe("application/octet-stream");
     expect(contentTypeForAsset("texmf.cnf")).toContain("text/plain");
+  });
+});
+
+describe("engine asset source", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("downloads from our own origin unless a host is configured", () => {
+    vi.stubEnv("NEXT_PUBLIC_TEX_ASSETS_URL", "");
+    expect(engineAssetSourceUrl("busytex.wasm")).toBe("/core/busytex/busytex.wasm");
+  });
+
+  it("downloads from the configured host, but caches under the same-origin key", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TEX_ASSETS_URL", "https://tex.example.com/busytex/");
+    expect(engineAssetSourceUrl("busytex.wasm")).toBe("https://tex.example.com/busytex/busytex.wasm");
+
+    const storage = new FakeCacheStorage();
+    const restore = stubBrowser(storage);
+    const requested: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      requested.push(url);
+      const asset = engineAssets.find((candidate) => url.endsWith(`/${candidate.name}`));
+      return asset ? servedResponse(asset.bytes, contentTypeForAsset(asset.name)) : new Response("no", { status: 404 });
+    }) as typeof fetch;
+
+    try {
+      await downloadEngineAssets();
+      expect(requested.every((url) => url.startsWith("https://tex.example.com/busytex/"))).toBe(true);
+      expect((await storage.open(engineCacheName)).entries.has(FakeCache.key(engineAssetUrl("busytex.wasm")))).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restore();
+    }
   });
 });
 
