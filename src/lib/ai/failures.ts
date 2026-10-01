@@ -142,6 +142,16 @@ function failureFromApiCall(error: APICallError): AiFailureError {
     });
   }
 
+  // A model this key cannot use: Groq answers 404 `model_not_found` for one that
+  // does not exist or is not on the account, and 400 `model_decommissioned` for one
+  // it retired. Same as a 503 for the caller — this model is out, the next may do.
+  if (status === 404 || (status === 400 && /model_not_found|model_decommissioned/.test(error.responseBody ?? ""))) {
+    return new AiFailureError("provider", `The provider has no usable model by that name (HTTP ${status}).`, {
+      routing: true,
+      cause: error,
+    });
+  }
+
   if (status !== undefined && status >= 500) {
     return new AiFailureError("provider", `The provider could not serve the request (HTTP ${status}).`, {
       retryAfterSeconds,

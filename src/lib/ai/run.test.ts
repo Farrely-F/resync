@@ -252,6 +252,30 @@ describe("runStructured under a throttled or broken provider", () => {
     expect(good.doGenerateCalls).toHaveLength(1);
   });
 
+  it("moves to the next model when the provider says this one does not exist", async () => {
+    const good = modelReturning({ headline: "Backend Engineer" });
+    const missing = modelFailing(
+      new APICallError({
+        message: "The model `llama-3.3-70b-versatile` does not exist or you do not have access to it.",
+        url: "https://api.groq.com/openai/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 404,
+        responseBody: JSON.stringify({ error: { code: "model_not_found" } }),
+        isRetryable: false,
+      }),
+    );
+
+    const result = await runStructured({
+      ...liveCall,
+      env: fallbackEnv,
+      backoff: quickPolicy,
+      modelFor: (target) => (target.modelId === "primary/model" ? missing : good),
+    });
+
+    expect(result).toEqual({ headline: "Backend Engineer" });
+    expect(missing.doGenerateCalls).toHaveLength(1);
+  });
+
   it("rethrows the malformed-JSON error unchanged when no model is left to try", async () => {
     const error = new APICallError({
       message: "Generated JSON does not match the expected schema.",

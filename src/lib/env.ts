@@ -26,7 +26,11 @@ export type AiProvider = (typeof aiProviders)[number];
  * set and more than one key is configured. Free allowances first (Groq,
  * OpenRouter), the paid-by-default Fireworks last.
  */
-export const providerPriority: readonly AiProvider[] = ["groq", "openrouter", "fireworks"];
+export const providerPriority: readonly AiProvider[] = [
+  "groq",
+  "openrouter",
+  "fireworks",
+];
 
 export interface ProviderDefaults {
   label: string;
@@ -55,8 +59,8 @@ export const providerDefaults: Record<AiProvider, ProviderDefaults> = {
   groq: {
     label: "Groq",
     keyVariable: "GROQ_API_KEY",
-    model: "llama-3.3-70b-versatile",
-    fallbacks: ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"],
+    model: "openai/gpt-oss-120b",
+    fallbacks: ["openai/gpt-oss-20b", "qwen/qwen3.8-27b"],
   },
   fireworks: {
     label: "Fireworks AI",
