@@ -132,7 +132,6 @@ describe("engine asset source", () => {
       restore();
     }
   });
-
   it("downloads from the configured host, but caches under the same-origin key", async () => {
     vi.stubEnv("NEXT_PUBLIC_TEX_ASSETS_URL", "https://tex.example.com/busytex/");
     expect(engineAssetSourceUrl("busytex.wasm")).toBe("https://tex.example.com/busytex/busytex.wasm");
