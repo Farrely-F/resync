@@ -33,6 +33,7 @@ export const aiTasks = [
   "write-cover-letter",
   "write-outreach",
   "prep-interview",
+  "grade-answer",
 ] as const;
 
 export type AiTask = (typeof aiTasks)[number];

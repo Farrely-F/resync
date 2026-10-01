@@ -25,6 +25,7 @@ interface JdSourceFormProps {
   onSubmit: () => void;
   busy: boolean;
   canSubmit: boolean;
+  submitLabel?: string;
 }
 
 export function JdSourceForm({
@@ -37,6 +38,7 @@ export function JdSourceForm({
   onSubmit,
   busy,
   canSubmit,
+  submitLabel = "Read job description",
 }: JdSourceFormProps) {
   return (
     <form
@@ -99,7 +101,7 @@ export function JdSourceForm({
       )}
 
       <Button className="h-11 w-full sm:w-auto" disabled={busy || !canSubmit} size="lg" type="submit">
-        {busy ? "Reading the posting…" : "Read job description"}
+        {busy ? "Reading the posting…" : submitLabel}
       </Button>
     </form>
   );

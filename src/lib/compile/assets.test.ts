@@ -5,6 +5,7 @@ import {
   clearEngineCache,
   contentTypeForAsset,
   downloadEngineAssets,
+  EngineAssetHashError,
   EngineAssetsMissingError,
   EngineAssetSizeError,
   engineAssetTotalBytes,
@@ -46,6 +47,16 @@ class FakeCacheStorage {
   async delete(name: string): Promise<boolean> {
     return this.caches.delete(name);
   }
+}
+
+/** The fake server sends zeros, so answer the digest with the pinned hash of the asset of that size. */
+function stubPinnedDigest() {
+  return vi.spyOn(crypto.subtle, "digest").mockImplementation(async (_algorithm, data) => {
+    const length = (data as ArrayBuffer).byteLength;
+    const asset = engineAssets.find((candidate) => candidate.bytes === length);
+    const hex = asset?.sha256 ?? "";
+    return new Uint8Array(hex.match(/../g)?.map((pair) => Number.parseInt(pair, 16)) ?? []).buffer;
+  });
 }
 
 function stubBrowser(storage: FakeCacheStorage | null) {
@@ -104,10 +115,29 @@ describe("engine asset source", () => {
     expect(engineAssetSourceUrl("busytex.wasm")).toBe("/core/busytex/busytex.wasm");
   });
 
+  it("rejects a same-size download whose content is not the pinned release", async () => {
+    const storage = new FakeCacheStorage();
+    const restore = stubBrowser(storage);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const asset = engineAssets.find((candidate) => String(input).endsWith(`/${candidate.name}`));
+      return asset ? servedResponse(asset.bytes, contentTypeForAsset(asset.name)) : new Response("no", { status: 404 });
+    }) as typeof fetch;
+
+    try {
+      await expect(downloadEngineAssets()).rejects.toBeInstanceOf(EngineAssetHashError);
+      expect((await storage.open(engineCacheName)).entries.size).toBe(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restore();
+    }
+  });
+
   it("downloads from the configured host, but caches under the same-origin key", async () => {
     vi.stubEnv("NEXT_PUBLIC_TEX_ASSETS_URL", "https://tex.example.com/busytex/");
     expect(engineAssetSourceUrl("busytex.wasm")).toBe("https://tex.example.com/busytex/busytex.wasm");
 
+    const digest = stubPinnedDigest();
     const storage = new FakeCacheStorage();
     const restore = stubBrowser(storage);
     const requested: string[] = [];
@@ -125,6 +155,7 @@ describe("engine asset source", () => {
       expect((await storage.open(engineCacheName)).entries.has(FakeCache.key(engineAssetUrl("busytex.wasm")))).toBe(true);
     } finally {
       globalThis.fetch = originalFetch;
+      digest.mockRestore();
       restore();
     }
   });
@@ -161,6 +192,7 @@ describe("engine cache", () => {
   });
 
   it("downloads each asset once and serves a second compile entirely from the cache", async () => {
+    const digest = stubPinnedDigest();
     const storage = new FakeCacheStorage();
     const restore = stubBrowser(storage);
     const requested: string[] = [];
@@ -188,6 +220,7 @@ describe("engine cache", () => {
       expect((await storage.open(engineCacheName)).entries.size).toBe(engineAssets.length);
     } finally {
       globalThis.fetch = originalFetch;
+      digest.mockRestore();
       restore();
     }
   });
