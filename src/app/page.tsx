@@ -80,29 +80,35 @@ export default function HomePage() {
       <section className="reveal-slow relative isolate overflow-hidden rounded-[2.5rem] bg-foreground px-7 py-16 text-background sm:px-14 md:py-24">
         <div
           aria-hidden
-          className="absolute -right-32 -top-40 -z-10 size-[34rem] rounded-full bg-primary/60 blur-[110px]"
+          className="absolute -right-24 -top-44 -z-10 size-[34rem] rounded-full bg-primary/60 blur-[110px]"
         />
         <div
           aria-hidden
           className="absolute -bottom-48 -left-24 -z-10 size-[28rem] rounded-full bg-[oklch(0.7_0.17_330)]/35 blur-[110px]"
         />
-        <h2 className="title max-w-2xl">Start with the resume you already have.</h2>
-        <p className="lede mt-5 max-w-xl text-background/70">
-          One resume and one posting is enough for the first match. No account to create, nothing to install.
-        </p>
-        <Link
-          className={cn(
-            buttonVariants({ size: "lg" }),
-            "sheen group/cta mt-9 justify-center bg-background text-foreground shadow-(--shadow-float) hover:bg-background"
-          )}
-          href="/match"
-        >
-          Start a match
-          <ArrowRight
-            aria-hidden
-            className="size-4 transition-transform duration-300 ease-(--ease-out-expo) group-hover/cta:translate-x-1"
-          />
-        </Link>
+        {/* The action sits beside the copy rather than under it, so the band is not a
+            half-empty slab at reading width; below `md` it stacks back into one column. */}
+        <div className="flex flex-col gap-8 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-12">
+          <div>
+            <h2 className="title max-w-xl">Start with the resume you already have.</h2>
+            <p className="lede mt-5 max-w-lg text-background/70">
+              One resume and one posting is enough for the first match. No account to create, nothing to install.
+            </p>
+          </div>
+          <Link
+            className={cn(
+              buttonVariants({ size: "lg" }),
+              "group/cta justify-center bg-background text-foreground shadow-(--shadow-float) hover:bg-background"
+            )}
+            href="/match"
+          >
+            Start a match
+            <ArrowRight
+              aria-hidden
+              className="size-4 transition-transform duration-300 ease-(--ease-out-expo) group-hover/cta:translate-x-1"
+            />
+          </Link>
+        </div>
       </section>
     </div>
   );
