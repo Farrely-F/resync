@@ -21,6 +21,13 @@ export const aiProviders = ["openrouter", "groq", "fireworks"] as const;
 
 export type AiProvider = (typeof aiProviders)[number];
 
+/**
+ * Which provider leads, and the order the rest follow, when `AI_PROVIDER` is not
+ * set and more than one key is configured. Free allowances first (Groq,
+ * OpenRouter), the paid-by-default Fireworks last.
+ */
+export const providerPriority: readonly AiProvider[] = ["groq", "openrouter", "fireworks"];
+
 export interface ProviderDefaults {
   label: string;
   keyVariable: string;
@@ -49,7 +56,7 @@ export const providerDefaults: Record<AiProvider, ProviderDefaults> = {
     label: "Groq",
     keyVariable: "GROQ_API_KEY",
     model: "llama-3.3-70b-versatile",
-    fallbacks: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b"],
+    fallbacks: ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"],
   },
   fireworks: {
     label: "Fireworks AI",
@@ -189,7 +196,7 @@ export function parseEnv(
     }
   }
 
-  const configured = aiProviders.filter(
+  const configured = providerPriority.filter(
     (provider) => apiKeys[provider] !== undefined,
   );
 
@@ -206,12 +213,12 @@ export function parseEnv(
       );
       provider = "openrouter";
     }
-  } else if (configured.length === 1) {
-    // One key present is a clear statement of which provider to use.
+  } else if (configured.length > 0) {
+    // The highest-priority provider that has a key leads; the other keys still
+    // contribute cross-provider fallbacks below, in the same order.
     provider = configured[0];
   } else {
-    // None, or several: OpenRouter is the default, and the other provider's key
-    // still contributes a cross-provider fallback below.
+    // No key at all: mock mode, or a loud failure naming OpenRouter's variable.
     provider = "openrouter";
   }
 
