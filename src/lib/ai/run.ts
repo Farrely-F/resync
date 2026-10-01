@@ -1,9 +1,9 @@
-import { Output, generateText, type LanguageModel } from "ai";
+import { APICallError, NoObjectGeneratedError, Output, generateText, type LanguageModel } from "ai";
 import type { z } from "zod";
 
 import { defaultBackoffPolicy, planRetry, type BackoffPolicy } from "@/lib/ai/backoff";
 import { withDeadline } from "@/lib/ai/deadline";
-import { AiFailureError, toAiFailure } from "@/lib/ai/failures";
+import { AiFailureError, errorCauseChain, toAiFailure } from "@/lib/ai/failures";
 import { inFlightModelRequests } from "@/lib/ai/inflight";
 import { describeError } from "@/lib/ai/logging";
 import { createModel, providerOptionsFor } from "@/lib/ai/provider";
@@ -112,6 +112,23 @@ interface CallTrace {
   requestId: string;
   attempts: number;
   target: ModelTarget | null;
+}
+
+/**
+ * True when the provider answered but the model's output was unusable: a strict
+ * provider refusing JSON that breaks the schema (Groq's `json_validate_failed`),
+ * or the SDK failing to parse or validate the text it got back.
+ */
+function isUnusableModelAnswer(error: unknown): boolean {
+  for (const candidate of errorCauseChain(error)) {
+    if (NoObjectGeneratedError.isInstance(candidate)) {
+      return true;
+    }
+    if (APICallError.isInstance(candidate) && candidate.statusCode === 400) {
+      return /json_validate_failed/.test(candidate.responseBody ?? "");
+    }
+  }
+  return false;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -250,6 +267,20 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trac
         // Anything unrecognised keeps its own error type: the routes tell an
         // unusable model answer apart from a transport failure by its shape.
         if (failure.kind === "unknown") {
+          // A model that wrote JSON its provider could not accept is a bad answer
+          // from this model, not from the request: another model may do better.
+          const anotherTarget = targets.slice(index + 1).length > 0;
+          if (isUnusableModelAnswer(error) && anotherTarget) {
+            logEvent("warn", "ai.target.abandoned", {
+              requestId: trace.requestId,
+              task: options.task,
+              provider: target.provider,
+              modelId: target.modelId,
+              attempt,
+              reason: "unusable-model-answer",
+            });
+            break;
+          }
           throw error;
         }
 
