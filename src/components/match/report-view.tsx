@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { isDevelopment } from "@/lib/dev-only";
 import { scoreCriteria, type RubricResult } from "@/lib/match/rubric";
 import type { CriterionKind, MatchReport } from "@/lib/match/types";
 import type { ResumeRecord, JdRecord } from "@/lib/storage/types";
@@ -152,10 +153,10 @@ export function ReportView({ id }: { id: string }) {
       <header className="flex flex-col gap-2" data-tour="report-score">
         <p className="text-4xl font-semibold tracking-tight">{formatScore(rubric.score)}%</p>
         <p className="text-sm text-muted-foreground">
-          Computed here from {report.criteria.length} criteria by rubric v{rubric.rubricVersion}, not returned by the
-          model.
+          Computed here from {report.criteria.length} criteria
+          {isDevelopment ? ` by rubric v${rubric.rubricVersion}` : ""}, not returned by the model.
         </p>
-        {drifted ? (
+        {isDevelopment && drifted ? (
           <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-xs leading-relaxed text-muted-foreground">
             This report was saved under rubric v{report.rubricVersion} with a score of {formatScore(report.score)}%. The
             weights have changed since, so re-scoring the stored criteria now gives {formatScore(rubric.score)}%. The
@@ -258,10 +259,10 @@ export function ReportView({ id }: { id: string }) {
 
       <footer className="flex flex-col gap-1 border-t border-border/60 pt-3 text-xs text-muted-foreground">
         <p>
-          Model {report.model} · mode {report.aiMode} · rubric v{report.rubricVersion} · saved{" "}
-          {new Date(report.createdAt).toLocaleString()}
+          {isDevelopment ? `Model ${report.model} · mode ${report.aiMode} · rubric v${report.rubricVersion} · ` : null}
+          Saved {new Date(report.createdAt).toLocaleString()}
         </p>
-        <p className="break-all">Input hash {report.inputHash}</p>
+        {isDevelopment ? <p className="break-all">Input hash {report.inputHash}</p> : null}
         <p>
           Stored in this browser only.{" "}
           <Link className="underline underline-offset-4 hover:text-foreground" href="/match">

@@ -35,6 +35,8 @@ const crossProviderEnv: AppEnv = {
 
 const schema = z.object({ headline: z.string() });
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /** Waits between attempts are real here, so keep them tiny. */
 const quickPolicy: BackoffPolicy = { maxAttempts: 3, baseDelayMs: 1, factor: 2, maxDelayMs: 5 };
 
@@ -260,6 +262,36 @@ describe("runStructured under a throttled or broken provider", () => {
 
   expect(result).toEqual({ headline: "Backend Engineer" });
   expect(seen).toEqual(["primary/model", "fallback/one"]);
+});
+
+it("lets the model that is first in line spend most of the budget, not a third of it", async () => {
+  // The regression this guards: three targets split 30s evenly, so the primary was
+  // cut off at 10s while it was still writing a correct answer, and the slower
+  // fallbacks behind it then ran out of time as well.
+  const slowButCorrect = new MockLanguageModelV4({
+    doGenerate: async () => {
+      await sleep(500);
+      return {
+        content: [{ type: "text", text: JSON.stringify({ headline: "Backend Engineer" }) }],
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: {
+          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 5, text: 5, reasoning: 0 },
+        },
+        warnings: [],
+      };
+    },
+  });
+
+  const result = await runStructured({
+    ...liveCall,
+    env: fallbackEnv,
+    deadlineMs: 1_000,
+    backoff: { ...quickPolicy, maxAttempts: 1 },
+    modelFor: (target) => (target.modelId === "primary/model" ? slowButCorrect : modelHanging()),
+  });
+
+  expect(result).toEqual({ headline: "Backend Engineer" });
 });
 
 it("still reports a timeout when every model has had its share", async () => {

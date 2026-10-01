@@ -12,7 +12,7 @@ import { createStorage } from "@/lib/storage";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
 import { readDecisions, recordDecision } from "@/lib/suggestions/decisions";
 import type { GenerationOutcome } from "@/lib/suggestions/types";
-import { acceptSuggestion, generateGroundedSuggestions } from "@/lib/suggestions/service";
+import { acceptSuggestion, ensureTailoredCopy, generateGroundedSuggestions } from "@/lib/suggestions/service";
 import { applySuggestion } from "@/lib/suggestions/apply";
 
 /**
@@ -342,5 +342,150 @@ describe("the two apply paths", () => {
     if (!stored.applied) {
       expect(stored.reason).toBe("missing-resume");
     }
+  });
+});
+
+describe("tailored copies", () => {
+  it("the first accept for a posting makes a copy and leaves the baseline byte-identical", async () => {
+    const baseline = resumeRecord();
+    await storage.putResume(baseline);
+    const before = JSON.stringify(await storage.getResume(baseline.id));
+    const { suggestions } = await generated();
+    const jdId = crypto.randomUUID();
+
+    const outcome = await acceptSuggestion({ resumeId: baseline.id, suggestion: suggestions[1], jdId }, { storage });
+
+    expect(outcome.applied).toBe(true);
+    if (!outcome.applied) {
+      return;
+    }
+    expect(outcome.created).toBe(true);
+    expect(outcome.record.id).not.toBe(baseline.id);
+    expect(outcome.record.derivedFromId).toBe(baseline.id);
+    expect(outcome.record.forJdId).toBe(jdId);
+    expect(outcome.record.resume.basics.summary).toBe(suggestions[1].proposed);
+    expect(JSON.stringify(await storage.getResume(baseline.id))).toBe(before);
+    expect(await storage.getResume(outcome.record.id)).not.toBeNull();
+  });
+
+  it("a second accept for the same posting lands in the same copy", async () => {
+    const baseline = resumeRecord();
+    await storage.putResume(baseline);
+    const { suggestions } = await generated();
+    const jdId = crypto.randomUUID();
+
+    const first = await acceptSuggestion({ resumeId: baseline.id, suggestion: suggestions[1], jdId }, { storage });
+    const second = await acceptSuggestion({ resumeId: baseline.id, suggestion: suggestions[0], jdId }, { storage });
+
+    expect(first.applied && second.applied).toBe(true);
+    if (first.applied && second.applied) {
+      expect(second.record.id).toBe(first.record.id);
+      expect(second.created).toBe(false);
+    }
+    const copies = (await storage.listResumes()).filter((record) => record.derivedFromId === baseline.id);
+    expect(copies).toHaveLength(1);
+  });
+
+  it("a different posting gets its own copy", async () => {
+    const baseline = resumeRecord();
+    await storage.putResume(baseline);
+    const { suggestions } = await generated();
+
+    const a = await acceptSuggestion(
+      { resumeId: baseline.id, suggestion: suggestions[1], jdId: crypto.randomUUID() },
+      { storage },
+    );
+    const b = await acceptSuggestion(
+      { resumeId: baseline.id, suggestion: suggestions[1], jdId: crypto.randomUUID() },
+      { storage },
+    );
+
+    expect(a.applied && b.applied).toBe(true);
+    if (a.applied && b.applied) {
+      expect(a.record.id).not.toBe(b.record.id);
+    }
+  });
+
+  it("a hand-edited baseline gets no copy", async () => {
+    const baseline = resumeRecord({ mode: "manual", manualTex: "\\documentclass{article}" });
+    await storage.putResume(baseline);
+    const before = (await storage.listResumes()).length;
+    const { suggestions } = await generated();
+
+    const outcome = await acceptSuggestion(
+      { resumeId: baseline.id, suggestion: suggestions[1], jdId: crypto.randomUUID() },
+      { storage },
+    );
+
+    expect(outcome.applied).toBe(false);
+    expect((await storage.listResumes()).length).toBe(before);
+  });
+
+  it("a refused accept leaves no empty copy behind", async () => {
+    const baseline = resumeRecord();
+    await storage.putResume(baseline);
+    const before = (await storage.listResumes()).length;
+    const { suggestions } = await generated();
+    const stale = { ...suggestions[1], current: "Text the resume does not contain." };
+
+    const outcome = await acceptSuggestion(
+      { resumeId: baseline.id, suggestion: stale, jdId: crypto.randomUUID() },
+      { storage },
+    );
+
+    expect(outcome.applied).toBe(false);
+    expect((await storage.listResumes()).length).toBe(before);
+  });
+
+  it("an accept against a copy applies in place rather than copying the copy", async () => {
+    const baseline = resumeRecord();
+    await storage.putResume(baseline);
+    const { suggestions } = await generated();
+    const jdId = crypto.randomUUID();
+    const made = await acceptSuggestion({ resumeId: baseline.id, suggestion: suggestions[1], jdId }, { storage });
+    if (!made.applied) {
+      throw new Error("expected a copy");
+    }
+    const before = (await storage.listResumes()).length;
+
+    const again = await acceptSuggestion({ resumeId: made.record.id, suggestion: suggestions[0], jdId }, { storage });
+
+    expect(again.applied).toBe(true);
+    if (again.applied) {
+      expect(again.record.id).toBe(made.record.id);
+    }
+    expect((await storage.listResumes()).length).toBe(before);
+  });
+});
+
+describe("ensureTailoredCopy", () => {
+  it("makes a copy without a suggestion, then finds it again", async () => {
+    const baseline = resumeRecord();
+    await storage.putResume(baseline);
+    const before = JSON.stringify(await storage.getResume(baseline.id));
+    const jdId = crypto.randomUUID();
+
+    const first = await ensureTailoredCopy({ resumeId: baseline.id, jdId }, { storage });
+    const second = await ensureTailoredCopy({ resumeId: baseline.id, jdId }, { storage });
+
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.created).toBe(true);
+      expect(second.created).toBe(false);
+      expect(second.record.id).toBe(first.record.id);
+    }
+    expect(JSON.stringify(await storage.getResume(baseline.id))).toBe(before);
+  });
+
+  it("returns a copy as it is, and refuses a hand-edited baseline", async () => {
+    const manual = resumeRecord({ mode: "manual", manualTex: "x" });
+    await storage.putResume(manual);
+    const refused = await ensureTailoredCopy({ resumeId: manual.id, jdId: "jd" }, { storage });
+    expect(refused.ok).toBe(false);
+
+    const copy = resumeRecord({ derivedFromId: "base", forJdId: "jd" });
+    await storage.putResume(copy);
+    const same = await ensureTailoredCopy({ resumeId: copy.id, jdId: "jd" }, { storage });
+    expect(same.ok && same.record.id === copy.id && !same.created).toBe(true);
   });
 });

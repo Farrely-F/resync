@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AiFailureError, isAiFailureKind, toRequestFailure, type AiFailureKind } from "@/lib/ai/failures";
 import { documentWaitMs, isDocumentFailure, type DocumentResponse } from "@/lib/documents/api";
 import { documentId, type DocumentKind, type DocumentRecord } from "@/lib/documents/types";
+import { findTailoredCopy } from "@/lib/resume/tailor";
 import { getStorage } from "@/lib/storage";
 
 /**
@@ -58,10 +59,15 @@ async function writeDocumentRecord(reportId: string, kind: DocumentKind): Promis
     return { ok: false, reason: "report-missing" };
   }
 
-  const [resumeRecord, jdRecord] = await Promise.all([
+  const [baselineRecord, jdRecord, allResumes] = await Promise.all([
     storage.getResume(report.resumeId),
     storage.getJd(report.jdId),
+    storage.listResumes(),
   ]);
+  // Written from the tailored copy when accepted adjustments made one: that is the
+  // resume the reader will send. The report's evidence is still the baseline's.
+  // The copy is looked up by id, not through the baseline: it outlives a deleted original.
+  const resumeRecord = findTailoredCopy(allResumes, report.resumeId, report.jdId) ?? baselineRecord;
 
   if (resumeRecord === null || jdRecord === null) {
     return { ok: false, reason: "report-missing" };

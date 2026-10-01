@@ -7,6 +7,7 @@ import { useDocument } from "@/components/documents/use-document";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { isDevelopment } from "@/lib/dev-only";
 import { outreachSpec } from "@/lib/documents/outreach";
 import { documentText } from "@/lib/documents/types";
 
@@ -362,8 +363,8 @@ export function OutreachPanel({ reportId }: { reportId: string }) {
 
           <div className="flex flex-col gap-1 border-t border-border/60 pt-3 text-xs text-muted-foreground">
             <p>
-              Written by {document.model} · mode {document.aiMode} · saved{" "}
-              {new Date(document.updatedAt).toLocaleString()}
+              {isDevelopment ? `Written by ${document.model} · mode ${document.aiMode} · ` : null}
+              Saved {new Date(document.updatedAt).toLocaleString()}
             </p>
             <p>
               {document.editedText === null

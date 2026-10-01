@@ -6,6 +6,7 @@ import { CircleAlert, LoaderCircle } from "lucide-react";
 import { AddResumeForm } from "@/components/resume/add-resume-form";
 import { ResumeList } from "@/components/resume/resume-list";
 import { getStorage } from "@/lib/storage";
+import { deriveJdTitle } from "@/lib/jd/schema";
 import type { ResumeRecord } from "@/lib/storage/types";
 
 /**
@@ -17,20 +18,22 @@ import type { ResumeRecord } from "@/lib/storage/types";
  */
 export function ResumeLibrary() {
   const [records, setRecords] = useState<ResumeRecord[] | null>(null);
+  const [jdTitles, setJdTitles] = useState<ReadonlyMap<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const rows = await getStorage().listResumes();
+    const [rows, jds] = await Promise.all([getStorage().listResumes(), getStorage().listJds()]);
+    setJdTitles(new Map(jds.map((jd) => [jd.id, deriveJdTitle(jd.structured, jd.title)])));
     setRecords(rows);
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    getStorage()
-      .listResumes()
-      .then((rows) => {
+    Promise.all([getStorage().listResumes(), getStorage().listJds()])
+      .then(([rows, jds]) => {
         if (!cancelled) {
+          setJdTitles(new Map(jds.map((jd) => [jd.id, deriveJdTitle(jd.structured, jd.title)])));
           setRecords(rows);
         }
       })
@@ -73,7 +76,7 @@ export function ResumeLibrary() {
             Loading your library…
           </p>
         ) : (
-          <ResumeList onDeleted={handleDeleted} records={records} />
+          <ResumeList jdTitles={jdTitles} onDeleted={handleDeleted} records={records} />
         )}
       </section>
     </div>

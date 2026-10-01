@@ -5,6 +5,7 @@ import { Check, CircleAlert, Copy, Download, Loader2, RefreshCw, Sparkles, Trash
 
 import { useDocument } from "@/components/documents/use-document";
 import { Button } from "@/components/ui/button";
+import { isDevelopment } from "@/lib/dev-only";
 import { interviewPrepSpec } from "@/lib/documents/interview-prep";
 import { documentText, type DocumentRecord } from "@/lib/documents/types";
 
@@ -341,14 +342,14 @@ export function InterviewPrepPanel({ reportId }: { reportId: string }) {
 
           <div className="flex flex-col gap-1 border-t border-border/60 pt-3 text-xs text-muted-foreground">
             <p>
-              Written by {document.model} · mode {document.aiMode} · saved{" "}
-              {new Date(document.updatedAt).toLocaleString()}
+              {isDevelopment ? `Written by ${document.model} · mode ${document.aiMode} · ` : null}
+              Saved {new Date(document.updatedAt).toLocaleString()}
             </p>
-            <p>
-              {document.aiMode === "mock"
-                ? "Mock mode: this is a recorded example that ships with the app, not one written from your documents."
-                : "Live mode: these questions were written from your documents on this request."}
-            </p>
+            {document.aiMode === "mock" ? (
+              <p>Mock mode: this is a recorded example that ships with the app, not one written from your documents.</p>
+            ) : isDevelopment ? (
+              <p>Live mode: these questions were written from your documents on this request.</p>
+            ) : null}
           </div>
         </div>
       )}

@@ -17,6 +17,7 @@ import { LatexSourceEditor } from "@/components/latex-editor/latex-source-editor
 import { ManualModeBadge } from "@/components/latex-editor/manual-mode-badge";
 import { RegenerateConfirm } from "@/components/latex-editor/regenerate-confirm";
 import { PageLayoutControls } from "@/components/theme/page-layout-controls";
+import { TailoredNotice } from "@/components/theme/tailored-notice";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { TourLauncher } from "@/components/tour/tour-launcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -397,6 +398,8 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
             : "The LaTeX below is this resume's document; the fields and the theme no longer produce it. Everything stays in this browser."}
         </p>
       </div>
+
+      <TailoredNotice record={record} />
 
       {editable ? null : (
         <Alert>

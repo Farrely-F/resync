@@ -11,8 +11,11 @@ import { ResumePicker } from "@/components/jd/resume-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isDevelopment } from "@/lib/dev-only";
 import { toRequestFailure, type AiFailureError } from "@/lib/ai/failures";
 import { browserUsageStore, readModelRequests, recordModelRequest, type ModelRequestUsage } from "@/lib/ai/usage";
+import { deriveJdTitle } from "@/lib/jd/schema";
+import { baselinesFirst } from "@/lib/resume/tailor";
 import { isIntakeError, jdRecordFromIntake, type JdIntakeResponse, type JdIntakeSuccess } from "@/lib/jd/api";
 import { classifyHost, type JobHints } from "@/lib/jd/hosts";
 import { fetchModelIdentity, requestEvidence, type ModelIdentity } from "@/lib/match/api";
@@ -30,6 +33,8 @@ import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
  */
 
 const jdQueryKey = "jd";
+/** Preselects a resume, so a report can send the reader back to re-match a tailored copy. */
+const resumeQueryKey = "resume";
 
 /**
  * How the analyse flow ends when it does not produce a report. A transport
@@ -98,11 +103,20 @@ function DeleteJdConfirm({ title, busy, onCancel, onConfirm }: {
   );
 }
 
+/**
+ * Developer diagnostics: which provider and model answer, and a local request tally.
+ * Visitors have no use for either, so it renders only under `next dev`. The guided
+ * tour skips a step whose target is absent, so hiding it leaves the tour intact.
+ */
 function QuotaPanel({ identity, usage, identityError }: {
   identity: ModelIdentity | null;
   usage: ModelRequestUsage | null;
   identityError: string | null;
 }) {
+  if (!isDevelopment) {
+    return null;
+  }
+
   const modeLine = identity === null
     ? identityError ?? "Reading the AI mode…"
     : identity.aiMode === "mock"
@@ -172,7 +186,16 @@ export function MatchWorkspace() {
 
       setUsage(initialUsage);
       setResumes(loadedResumes);
-      setSelectedResumeId((current) => current ?? loadedResumes[0]?.id ?? null);
+      // The newest baseline, not the newest record: a tailored copy is updated more
+      // recently than the resume it came from, and a match starts from the original.
+      const requested = new URLSearchParams(window.location.search).get(resumeQueryKey);
+      setSelectedResumeId(
+        (current) =>
+          current ??
+          loadedResumes.find((record) => record.id === requested)?.id ??
+          baselinesFirst(loadedResumes)[0]?.id ??
+          null,
+      );
       applyJds(loadedJds, jdQueryId());
     })().catch(() => {
       if (!cancelled) {
@@ -335,6 +358,7 @@ export function MatchWorkspace() {
       <section className="flex flex-col gap-2" data-tour="match-resume">
         <h2 className="text-sm font-semibold">1. Your resume</h2>
         <ResumePicker
+          jdTitles={new Map((jds ?? []).map((record) => [record.id, deriveJdTitle(record.structured, record.title)]))}
           loading={loading}
           onSelect={setSelectedResumeId}
           resumes={resumes ?? []}

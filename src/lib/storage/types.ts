@@ -23,6 +23,10 @@ export interface ResumeRecord {
   themeId: string;
   /** Paper and margin. Absent on records saved before layouts existed: read it with `resolveLayout`. */
   layout?: PageLayout;
+  /** Set on a copy tailored for one posting: the baseline resume it was copied from. */
+  derivedFromId?: string;
+  /** Set with `derivedFromId`: the job description this copy was tailored for. */
+  forJdId?: string;
   /** `manual` means the user edited the generated LaTeX; it must not be rewritten from data. */
   mode: ResumeMode;
   /** Hand-edited LaTeX. Only meaningful when `mode` is `manual`. */

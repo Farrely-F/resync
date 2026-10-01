@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Briefcase, FileText } from "lucide-react";
 
+import { isDevelopment } from "@/lib/dev-only";
+import { findTailoredCopy, isTailoredCopy } from "@/lib/resume/tailor";
 import { deriveJdTitle } from "@/lib/jd/schema";
 import type { MatchReport } from "@/lib/match/types";
 import { getStorage } from "@/lib/storage";
@@ -23,7 +25,16 @@ type Loaded =
   | { status: "loading" }
   | { status: "failed" }
   | { status: "missing" }
-  | { status: "ready"; report: MatchReport; resume: ResumeRecord | null; jd: JdRecord | null };
+  | {
+      status: "ready";
+      report: MatchReport;
+      resume: ResumeRecord | null;
+      /** The record documents are written from when it is a tailored copy, else null. */
+      copy: ResumeRecord | null;
+      /** What that copy was made from, if it is still stored. */
+      baseline: ResumeRecord | null;
+      jd: JdRecord | null;
+    };
 
 function Gone({ what }: { what: string }) {
   return <p className="text-sm text-muted-foreground">The {what} is no longer stored in this browser.</p>;
@@ -62,8 +73,18 @@ export function ReportInputs({ reportId }: { reportId: string }) {
         return { status: "missing" } as const;
       }
 
-      const [resume, jd] = await Promise.all([storage.getResume(report.resumeId), storage.getJd(report.jdId)]);
-      return { status: "ready", report, resume, jd } as const;
+      const [resume, jd, all] = await Promise.all([
+        storage.getResume(report.resumeId),
+        storage.getJd(report.jdId),
+        storage.listResumes(),
+      ]);
+      // Either the report ran against a baseline that has since been copied, or it
+      // ran against a copy itself; documents are written from the copy in both.
+      const copy =
+        findTailoredCopy(all, report.resumeId, report.jdId) ?? (resume !== null && isTailoredCopy(resume) ? resume : null);
+      const baselineId = copy?.derivedFromId ?? null;
+      const baseline = baselineId === null ? null : (all.find((record) => record.id === baselineId) ?? null);
+      return { status: "ready", report, resume, copy, baseline, jd } as const;
     })()
       .catch(() => ({ status: "failed" }) as const)
       .then((next) => {
@@ -91,25 +112,30 @@ export function ReportInputs({ reportId }: { reportId: string }) {
     );
   }
 
-  const { report, resume, jd } = loaded;
+  const { report, resume, copy, baseline, jd } = loaded;
+  const written = copy ?? resume;
   const jdFacts = jd === null ? [] : [jd.structured.seniority, jd.structured.location].filter(Boolean);
 
   return (
     <section aria-label="What this is written from" className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <InputCard icon={<FileText aria-hidden />} label="Resume">
-          {resume === null ? (
+        <InputCard icon={<FileText aria-hidden />} label={copy === null ? "Resume" : "Tailored resume"}>
+          {written === null ? (
             <Gone what="resume" />
           ) : (
             <>
               <Link
                 className="truncate text-sm font-medium underline-offset-4 hover:underline"
-                href={`/resumes/${resume.id}/edit`}
+                href={`/resumes/${written.id}/edit`}
               >
-                {resume.title}
+                {written.title}
               </Link>
               <p className="text-xs text-muted-foreground">
-                {resume.mode === "manual" ? "Hand-edited LaTeX" : "Generated from its fields"}
+                {copy !== null
+                  ? `A copy for this job${baseline === null ? ", original deleted" : `, based on ${baseline.title}`}`
+                  : written.mode === "manual"
+                    ? "Hand-edited LaTeX"
+                    : "Generated from its fields"}
               </p>
             </>
           )}
@@ -136,8 +162,14 @@ export function ReportInputs({ reportId }: { reportId: string }) {
 
       <p className="text-xs text-muted-foreground">
         From the match report scored {Number.isInteger(report.score) ? report.score : report.score.toFixed(1)}%, run{" "}
-        {new Date(report.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} with{" "}
-        <span className="font-mono">{report.model}</span> ({report.aiMode === "mock" ? "mock mode" : "live"}).
+        {new Date(report.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+        {isDevelopment ? (
+          <>
+            {" "}
+            with <span className="font-mono">{report.model}</span> ({report.aiMode === "mock" ? "mock mode" : "live"})
+          </>
+        ) : null}
+        .
       </p>
     </section>
   );

@@ -7,6 +7,7 @@ import { useDocument } from "@/components/documents/use-document";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { isDevelopment } from "@/lib/dev-only";
 import { specFor } from "@/lib/documents/registry";
 import { documentText } from "@/lib/documents/types";
 
@@ -275,7 +276,8 @@ export function CoverLetterPanel({ reportId }: { reportId: string }) {
 
           <footer className="flex flex-col gap-1 border-t border-border/60 pt-3 text-xs text-muted-foreground">
             <p>
-              Model {record.model} · mode {record.aiMode} · written {new Date(record.updatedAt).toLocaleString()}
+              {isDevelopment ? `Model ${record.model} · mode ${record.aiMode} · ` : null}
+              Written {new Date(record.updatedAt).toLocaleString()}
             </p>
             {record.aiMode === "mock" ? (
               <p>

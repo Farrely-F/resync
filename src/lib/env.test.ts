@@ -75,6 +75,40 @@ describe("parseEnv", () => {
     );
   });
 
+  it("infers the Fireworks provider from a Fireworks key alone, with Fireworks' own default model", () => {
+    const env = parseEnv({ FIREWORKS_API_KEY: "fw-real" }, "development");
+
+    expect(env.aiMode).toBe("live");
+    expect(env.provider).toBe("fireworks");
+    expect(env.model).toBe(providerDefaults.fireworks.model);
+    expect(env.apiKeys).toEqual({ fireworks: "fw-real" });
+    expect(env.fallbacks).toEqual(
+      providerDefaults.fireworks.fallbacks.map((modelId) => ({ provider: "fireworks", modelId })),
+    );
+  });
+
+  it("demands FIREWORKS_API_KEY when Fireworks is chosen explicitly", () => {
+    try {
+      parseEnv({ AI_PROVIDER: "fireworks", OPENROUTER_API_KEY: "sk" }, "development");
+      throw new Error("expected parseEnv to throw");
+    } catch (error) {
+      expect((error as EnvError).issues.join(" ")).toContain("FIREWORKS_API_KEY");
+    }
+  });
+
+  it("reads a Fireworks fallback entry whose model id contains slashes", () => {
+    const env = parseEnv(
+      {
+        OPENROUTER_API_KEY: "sk",
+        FIREWORKS_API_KEY: "fw",
+        FALLBACK_MODEL_IDS: "fireworks@accounts/fireworks/models/gpt-oss-120b",
+      },
+      "development",
+    );
+
+    expect(env.fallbacks).toEqual([{ provider: "fireworks", modelId: "accounts/fireworks/models/gpt-oss-120b" }]);
+  });
+
   it("keeps a vendor-shaped model id working through MODEL_ID, whichever provider is chosen", () => {
     const env = parseEnv({ GROQ_API_KEY: "gsk", MODEL_ID: "openai/gpt-oss-120b" }, "development");
 
@@ -106,7 +140,7 @@ describe("parseEnv", () => {
     } catch (error) {
       const issues = (error as EnvError).issues.join(" ");
       expect(issues).toContain("AI_PROVIDER");
-      expect(issues).toContain("openrouter, groq");
+      expect(issues).toContain("openrouter, groq, fireworks");
     }
   });
 
@@ -232,10 +266,13 @@ describe("summariseAiMode", () => {
     expect(summary.providersWithKeys).toEqual(["groq"]);
   });
 
-  it("lists both providers when both keys are configured", () => {
+  it("lists every provider with a configured key", () => {
     expect(summariseAiMode({ OPENROUTER_API_KEY: "sk", GROQ_API_KEY: "gsk" }, "development").providersWithKeys).toEqual(
       ["openrouter", "groq"],
     );
+    expect(
+      summariseAiMode({ OPENROUTER_API_KEY: "sk", FIREWORKS_API_KEY: "fw" }, "development").providersWithKeys,
+    ).toEqual(["openrouter", "fireworks"]);
   });
 
   it("marks an explicit mock, so the notice can point at the actual cause", () => {

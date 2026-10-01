@@ -6,7 +6,7 @@ import { withDeadline } from "@/lib/ai/deadline";
 import { AiFailureError, toAiFailure } from "@/lib/ai/failures";
 import { inFlightModelRequests } from "@/lib/ai/inflight";
 import { describeError } from "@/lib/ai/logging";
-import { createModel } from "@/lib/ai/provider";
+import { createModel, providerOptionsFor } from "@/lib/ai/provider";
 import { getEnv, type AppEnv, type ModelTarget } from "@/lib/env";
 import { logEvent, newRequestId } from "@/lib/log";
 
@@ -43,6 +43,9 @@ export type AiTask = (typeof aiTasks)[number];
  * call with a `timeout` failure.
  */
 export const defaultDeadlineMs = 30_000;
+
+/** The fraction of the remaining budget the target currently being tried may spend, while another is waiting. */
+const currentTargetShare = 0.6;
 
 export class MissingFixtureError extends Error {
   readonly task: AiTask;
@@ -122,6 +125,7 @@ async function generateStructured<T>(
   options: RunStructuredOptions<T>,
   timeoutMs: number,
   callerSignal: AbortSignal | undefined,
+  providerOptions: ReturnType<typeof providerOptionsFor>,
 ): Promise<T> {
   const { output } = await withDeadline(
     (deadlineSignal) =>
@@ -133,6 +137,7 @@ async function generateStructured<T>(
         // The seam owns the retry schedule, so the SDK must not add its own
         // invisible one on top of it.
         maxRetries: 0,
+        providerOptions,
         abortSignal: callerSignal === undefined ? deadlineSignal : AbortSignal.any([callerSignal, deadlineSignal]),
       }),
     timeoutMs,
@@ -191,11 +196,16 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trac
        * need. Without this, one stalled provider consumed the whole deadline and
        * the fallback was never called — which is precisely the failure the
        * fallback list exists for. The last target left gets whatever remains.
+       *
+       * The share is weighted, not equal: the model first in line is the one
+       * expected to answer, and the fallbacks are usually slower. An equal split
+       * cut a three-model list off at a third of the deadline while the primary
+       * was still writing a correct answer.
        */
       const targetsLeft = targets
         .slice(index)
         .filter((candidate) => !spentProviders.has(candidate.provider)).length;
-      const attemptMs = Math.max(1, Math.floor(remainingMs / Math.max(1, targetsLeft)));
+      const attemptMs = targetsLeft <= 1 ? remainingMs : Math.max(1, Math.floor(remainingMs * currentTargetShare));
 
       const attemptStartedAt = Date.now();
       trace.attempts = attempt;
@@ -209,7 +219,7 @@ async function callModels<T>(options: RunStructuredOptions<T>, env: AppEnv, trac
       });
 
       try {
-        const value = await generateStructured(model, options, attemptMs, options.signal);
+        const value = await generateStructured(model, options, attemptMs, options.signal, providerOptionsFor(target));
         logEvent("info", "ai.attempt.succeeded", {
           requestId: trace.requestId,
           task: options.task,

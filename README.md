@@ -34,7 +34,7 @@ Every structured model call goes through one seam (`src/lib/ai/run.ts`), which i
 calling feature provides under `AI_MODE=mock` or sent to OpenRouter under `AI_MODE=live`. Tests and local
 development never need network access or an API key.
 
-**Provider**: `AI_PROVIDER` selects `openrouter` or `groq` and `MODEL_ID` selects the model, so no variable is
+**Provider**: `AI_PROVIDER` selects `openrouter`, `groq` or `fireworks` and `MODEL_ID` selects the model, so no variable is
 shaped like one vendor. With only one provider's key present that provider is used; with both, the other one is
 appended to the fallback chain automatically, which is the point of having two — when one vendor's free allowance is
 spent, the next attempt goes to a different vendor. Model ids stay vendor-shaped in `MODEL_ID`; which vendor receives

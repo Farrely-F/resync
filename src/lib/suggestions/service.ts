@@ -5,8 +5,9 @@ import type { AppEnv } from "@/lib/env";
 import type { Jd } from "@/lib/jd/schema";
 import type { MatchCriterion } from "@/lib/match/types";
 import type { Resume } from "@/lib/resume/schema";
-import type { StorageApi } from "@/lib/storage/types";
-import { applySuggestion, type ApplyResult } from "@/lib/suggestions/apply";
+import { buildTailoredCopy, findTailoredCopy, isTailoredCopy } from "@/lib/resume/tailor";
+import type { ResumeRecord, StorageApi } from "@/lib/storage/types";
+import { applyRefusalMessages, applySuggestion, type ApplyResult } from "@/lib/suggestions/apply";
 import { buildSuggestions } from "@/lib/suggestions/assemble";
 import { suggestAdjustments, type SuggestionDraft } from "@/lib/suggestions/generate";
 import type { GenerationOutcome, Suggestion } from "@/lib/suggestions/types";
@@ -68,21 +69,31 @@ export async function generateGroundedSuggestions(
 }
 
 export interface AcceptSuggestionDeps {
-  storage: Pick<StorageApi, "getResume" | "putResume">;
+  storage: Pick<StorageApi, "getResume" | "putResume" | "listResumes">;
   now?: () => string;
+  newId?: () => string;
 }
 
+export type AcceptResult = ApplyResult & { created?: boolean };
+
 /**
- * Applies one suggestion to the stored resume.
+ * Applies one suggestion.
+ *
+ * With a `jdId`, the suggestion lands in a copy of the resume tailored for that
+ * posting, and the baseline is never written: the copy is found if an earlier
+ * accept made one, and built from the baseline if not. A resume that is itself a
+ * copy is changed in place, so analysing a copy does not copy the copy. Without
+ * a `jdId` the stored resume is changed directly.
  *
  * The record is read fresh rather than taken from the page, so a change made
- * elsewhere (another tab, the editor) is what the staleness check sees, and a
- * refusal never reaches `putResume`.
+ * elsewhere (another tab, the editor) is what the staleness check sees. A
+ * refusal never reaches `putResume`, and a copy is only stored together with the
+ * suggestion that justified it — a refused accept leaves no empty copy behind.
  */
 export async function acceptSuggestion(
-  input: { resumeId: string; suggestion: Suggestion },
+  input: { resumeId: string; suggestion: Suggestion; jdId?: string },
   deps: AcceptSuggestionDeps,
-): Promise<ApplyResult> {
+): Promise<AcceptResult> {
   const record = await deps.storage.getResume(input.resumeId);
 
   if (record === null) {
@@ -93,7 +104,25 @@ export async function acceptSuggestion(
     };
   }
 
-  const outcome = applySuggestion(record, input.suggestion, deps.now);
+  let target = record;
+  let created = false;
+
+  if (input.jdId !== undefined && !isTailoredCopy(record)) {
+    const existing = findTailoredCopy(await deps.storage.listResumes(), record.id, input.jdId);
+
+    if (existing !== null) {
+      target = existing;
+    } else if (record.mode === "manual") {
+      // A copy would drop the hand-edited LaTeX, so the baseline's own refusal stands.
+      return applySuggestion(record, input.suggestion, deps.now);
+    } else {
+      const now = (deps.now ?? (() => new Date().toISOString()))();
+      target = buildTailoredCopy(record, input.jdId, (deps.newId ?? (() => crypto.randomUUID()))(), now);
+      created = true;
+    }
+  }
+
+  const outcome = applySuggestion(target, input.suggestion, deps.now);
 
   if (!outcome.applied) {
     return outcome;
@@ -101,5 +130,46 @@ export async function acceptSuggestion(
 
   await deps.storage.putResume(outcome.record);
 
-  return outcome;
+  return { ...outcome, created };
+}
+
+export type EnsureCopyResult =
+  | { ok: true; record: ResumeRecord; created: boolean }
+  | { ok: false; reason: "missing-resume" | "manual-mode"; message: string };
+
+/**
+ * The tailored copy for a posting, found or made, without a suggestion.
+ *
+ * Accepting a proposal is one way to get a copy; this is the other, for a reader
+ * who wants to rewrite the resume for the job by hand, or whose analysis produced
+ * no proposals. A resume that is already a copy is returned as it is.
+ */
+export async function ensureTailoredCopy(
+  input: { resumeId: string; jdId: string },
+  deps: AcceptSuggestionDeps,
+): Promise<EnsureCopyResult> {
+  const record = await deps.storage.getResume(input.resumeId);
+
+  if (record === null) {
+    return { ok: false, reason: "missing-resume", message: applyRefusalMessages["missing-resume"] };
+  }
+
+  if (isTailoredCopy(record)) {
+    return { ok: true, record, created: false };
+  }
+
+  const existing = findTailoredCopy(await deps.storage.listResumes(), record.id, input.jdId);
+  if (existing !== null) {
+    return { ok: true, record: existing, created: false };
+  }
+
+  if (record.mode === "manual") {
+    return { ok: false, reason: "manual-mode", message: applyRefusalMessages["manual-mode"] };
+  }
+
+  const now = (deps.now ?? (() => new Date().toISOString()))();
+  const copy = buildTailoredCopy(record, input.jdId, (deps.newId ?? (() => crypto.randomUUID()))(), now);
+  await deps.storage.putResume(copy);
+
+  return { ok: true, record: copy, created: true };
 }
