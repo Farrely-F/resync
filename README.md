@@ -191,6 +191,15 @@ mid-tour does not record it, so it can be offered again. Settings lists every to
   or raise a consent prompt. There is one compile state behind the preview and the download, so the two cannot
   disagree; a compile in progress keeps only the newest document; and when the PDF on screen is older than the
   document, it says so instead of looking current. The Live switch turns the whole thing off.
+- **Three fallback pages, each for the case the one above it cannot cover.** `not-found.tsx` answers both a
+  `notFound()` call and an address that matches no route; its copy names the per-browser storage, because that is what
+  a dead link actually means here — a record that never left another device, not a page that was lost.
+  `error.tsx` catches anything thrown below the root layout, offers `retry()` first (the recovery that fixes a stale
+  chunk or a transient fetch), and prints what was thrown beside the digest, which is the only handle on the matching
+  server line. `global-error.tsx` stands in for the root layout itself, so it repeats the stylesheet and the font
+  variables — declared once in `src/lib/fonts.ts` for both documents — and renders a bare centred column with no
+  navigation, because the navigation is part of what failed. `describeThrown` narrows the caught value, which the
+  boundary types give as `unknown`, so the page cannot fail on the error it exists to report.
 
 ## Licence
 

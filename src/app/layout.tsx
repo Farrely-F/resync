@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Inter, Instrument_Serif } from "next/font/google";
 
 import "./globals.css";
 
@@ -7,21 +6,9 @@ import { AppShell } from "@/components/app-shell";
 import { MockModeNotice } from "@/components/ai/mock-mode-notice";
 import { SiteFooter } from "@/components/site-footer";
 import { summariseAiMode } from "@/lib/env";
+import { display, geistMono, geistSans, inter } from "@/lib/fonts";
 import { brand, resolveSiteUrl, siteDescription, siteKeywords, siteName, siteTitle, sourceUrl } from "@/lib/site";
 import { cn } from "@/lib/utils";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-
-const display = Instrument_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-display",
-});
-
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   metadataBase: resolveSiteUrl(),
