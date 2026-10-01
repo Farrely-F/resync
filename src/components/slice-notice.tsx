@@ -7,7 +7,7 @@ import Link from "next/link";
  */
 export function SliceNotice({ issue, children }: { issue: number; children: React.ReactNode }) {
   return (
-    <p className="mt-6 rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+    <p className="mt-6 rounded-2xl border border-dashed border-foreground/15 bg-card px-4 py-3 text-sm text-muted-foreground">
       {children}{" "}
       <Link
         className="underline underline-offset-4 hover:text-foreground"

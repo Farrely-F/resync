@@ -35,6 +35,8 @@ const crossProviderEnv: AppEnv = {
 
 const schema = z.object({ headline: z.string() });
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /** Waits between attempts are real here, so keep them tiny. */
 const quickPolicy: BackoffPolicy = { maxAttempts: 3, baseDelayMs: 1, factor: 2, maxDelayMs: 5 };
 
@@ -49,6 +51,13 @@ function modelReturning(json: unknown) {
       },
       warnings: [],
     },
+  });
+}
+
+/** A model that never answers: the case a shared budget exists for. */
+function modelHanging() {
+  return new MockLanguageModelV4({
+    doGenerate: () => new Promise<never>(() => {}),
   });
 }
 
@@ -233,7 +242,79 @@ describe("runStructured under a throttled or broken provider", () => {
     expect(model.doGenerateCalls).toHaveLength(fallbackEnv.fallbacks.length + 1);
   });
 
-  it("does not retry a provider it cannot reach at all", async () => {
+  it("gives a stalled model only its share of the budget, so the next one is still tried", async () => {
+  // The regression this guards: the first attempt consumed the whole deadline, the
+  // call failed with a timeout, and the fallback model was never called — even
+  // though a fallback is exactly what a stalled provider needs.
+  const seen: string[] = [];
+  const good = modelReturning({ headline: "Backend Engineer" });
+
+  const result = await runStructured({
+    ...liveCall,
+    env: fallbackEnv,
+    deadlineMs: 2_000,
+    backoff: { ...quickPolicy, maxAttempts: 1 },
+    modelFor: (target) => {
+      seen.push(target.modelId);
+      return target.modelId === "primary/model" ? modelHanging() : good;
+    },
+  });
+
+  expect(result).toEqual({ headline: "Backend Engineer" });
+  expect(seen).toEqual(["primary/model", "fallback/one"]);
+});
+
+it("lets the model that is first in line spend most of the budget, not a third of it", async () => {
+  // The regression this guards: three targets split 30s evenly, so the primary was
+  // cut off at 10s while it was still writing a correct answer, and the slower
+  // fallbacks behind it then ran out of time as well.
+  const slowButCorrect = new MockLanguageModelV4({
+    doGenerate: async () => {
+      await sleep(500);
+      return {
+        content: [{ type: "text", text: JSON.stringify({ headline: "Backend Engineer" }) }],
+        finishReason: { unified: "stop", raw: "stop" },
+        usage: {
+          inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 5, text: 5, reasoning: 0 },
+        },
+        warnings: [],
+      };
+    },
+  });
+
+  const result = await runStructured({
+    ...liveCall,
+    env: fallbackEnv,
+    deadlineMs: 1_000,
+    backoff: { ...quickPolicy, maxAttempts: 1 },
+    modelFor: (target) => (target.modelId === "primary/model" ? slowButCorrect : modelHanging()),
+  });
+
+  expect(result).toEqual({ headline: "Backend Engineer" });
+});
+
+it("still reports a timeout when every model has had its share", async () => {
+  const seen: string[] = [];
+
+  const failure = await runStructured({
+    ...liveCall,
+    env: fallbackEnv,
+    deadlineMs: 600,
+    backoff: { ...quickPolicy, maxAttempts: 1 },
+    modelFor: (target) => {
+      seen.push(target.modelId);
+      return modelHanging();
+    },
+  }).catch((error: unknown) => error);
+
+  expect((failure as AiFailureError).kind).toBe("timeout");
+  // Every target was given a turn before the budget ran out: the budget is split
+  // between them rather than spent by the first one to stall.
+  expect(seen).toEqual(["primary/model", "fallback/one", "fallback/two"]);
+});
+
+it("does not retry a provider it cannot reach at all", async () => {
     const model = modelFailing(new TypeError("fetch failed", { cause: new Error("ECONNREFUSED") }));
 
     const failure = await runStructured({ ...liveCall, env: liveEnv, model, backoff: quickPolicy }).catch(

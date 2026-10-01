@@ -36,7 +36,7 @@ export function TextField({
   wide?: boolean;
 }) {
   const controlClassName = cn(
-    "w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm",
+    "w-full min-w-0 rounded-xl border border-input bg-card shadow-[inset_0_1px_2px_oklch(0.2_0.03_265/0.05)] outline-none transition-[box-shadow,border-color,background-color] duration-200 hover:border-foreground/25 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 px-3 text-sm",
     multiline ? "min-h-24 py-2.5" : "h-11",
   );
   const shared = {

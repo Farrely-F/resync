@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,16 @@ import { disposeRunner } from "@/lib/compile/engine";
  * `refreshToken` is the caller saying "the cache changed outside this card":
  * bump it after a download so the size is not stale.
  */
-export function EngineCacheCard({ onCleared, refreshToken = 0 }: { onCleared?: () => void; refreshToken?: number }) {
+export function EngineCacheCard({
+  onCleared,
+  refreshToken = 0,
+  nested = false,
+}: {
+  onCleared?: () => void;
+  refreshToken?: number;
+  /** Sits inside another card, so it is drawn as a flat well rather than a raised card. */
+  nested?: boolean;
+}) {
   const [status, setStatus] = useState<EngineCacheStatus | null>(null);
   const [consent, setConsent] = useState<ConsentRecord | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -83,7 +93,15 @@ export function EngineCacheCard({ onCleared, refreshToken = 0 }: { onCleared?: (
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-border/60 p-4">
+    <section
+      className={cn(
+        "flex flex-col gap-3 p-4",
+        nested
+          ? "rounded-xl bg-background ring-1 ring-foreground/[0.08]"
+          : "rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest)",
+      )}
+      data-tour="settings-engine"
+    >
       <h2 className="text-sm font-medium">TeX engine on this device</h2>
 
       {status === null ? (
@@ -121,7 +139,7 @@ export function EngineCacheCard({ onCleared, refreshToken = 0 }: { onCleared?: (
           ) : null}
 
           {confirming ? (
-            <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+            <div className="flex flex-col gap-3 rounded-xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-3">
               <p className="text-sm">
                 Clear the cached engine? {formatBytes(engineAssetTotalBytes)} is removed from this browser and must be
                 downloaded again before the next compile.

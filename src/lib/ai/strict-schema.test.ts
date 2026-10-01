@@ -2,6 +2,9 @@ import { zodSchema } from "ai";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 
+import { coverLetterSpec } from "@/lib/documents/cover-letter";
+import { interviewPrepSpec } from "@/lib/documents/interview-prep";
+import { outreachSpec } from "@/lib/documents/outreach";
 import { jdContentSchema } from "@/lib/jd/model-schema";
 import { jdSchema } from "@/lib/jd/schema";
 import { criterionEvidenceSchema } from "@/lib/match/analyze";
@@ -32,6 +35,11 @@ const modelSchemas: Record<string, z.ZodType> = {
   "analyze-match": criterionEvidenceSchema,
   "suggest-actions": suggestionDraftSchema,
   "verify-suggestions": suggestionVerificationSchema,
+  // The documents read from the spec, so the schema that is checked is the one
+  // the route actually sends rather than a second copy of it.
+  "write-cover-letter": coverLetterSpec.schema,
+  "write-outreach": outreachSpec.schema,
+  "prep-interview": interviewPrepSpec.schema,
 };
 
 interface JsonSchemaNode {

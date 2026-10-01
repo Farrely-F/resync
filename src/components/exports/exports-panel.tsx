@@ -84,7 +84,7 @@ export function ExportsPanel({ records }: { records: ResumeRecord[] }) {
   }
 
   return (
-    <section aria-labelledby="exports-heading" className="flex flex-col gap-4 rounded-lg border border-border/60 p-4">
+    <section aria-labelledby="exports-heading" className="flex flex-col gap-4 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-medium" id="exports-heading">
           Exports
@@ -224,7 +224,7 @@ export function ExportsPanel({ records }: { records: ResumeRecord[] }) {
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3">
+          <div className="flex flex-col gap-2 rounded-xl bg-background ring-1 ring-foreground/[0.08] p-3">
             <h3 className="text-xs font-medium">PDF</h3>
             <p className="text-xs leading-relaxed text-muted-foreground">
               A PDF needs the bundled TeX engine, and there is one compile UI: the one in the editor, next to the same

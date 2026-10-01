@@ -89,6 +89,17 @@ function isAbortError(error: unknown): boolean {
  * in `cause`; a browser fetch reports "Failed to fetch".
  */
 function isTransportError(error: unknown): boolean {
+  // When every address Node tried failed to connect (an unroutable IPv6 address,
+  // then IPv4 attempts cut off by its short per-address timeout), it throws an
+  // AggregateError with no message of its own. The socket errors are inside.
+  if (error instanceof AggregateError) {
+    return error.errors.some((inner) => {
+      const code = typeof inner === "object" && inner !== null && "code" in inner ? String(inner.code) : "";
+      const message = inner instanceof Error ? inner.message : "";
+      return /^E(CONN|NET|HOST|TIMEDOUT|AI_)/.test(code) || /\bconnect\b|ECONN|ENET|EHOST|ETIMEDOUT/i.test(message);
+    });
+  }
+
   if (!(error instanceof TypeError)) {
     return false;
   }

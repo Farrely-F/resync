@@ -6,82 +6,70 @@ import { HeroVisual } from "@/components/landing/hero-visual";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { FactsChecklist } from "@/components/landing/step-previews";
 import { buttonVariants } from "@/components/ui/button";
+import { publicMetadata } from "@/lib/seo";
+import { resolveSiteUrl, siteDescription, siteTitle } from "@/lib/site";
+import { serializeJsonLd, webApplicationJsonLd } from "@/lib/structured-data";
 import { cn } from "@/lib/utils";
 
-const title = "resync — match a resume to a job, then fix the gap";
-const description =
-  "Add a resume and a job posting, and see what the match actually rests on. The score comes from a weighted rubric over extracted evidence, suggestions arrive one at a time, and the output is typeset LaTeX. Nothing is uploaded: your data stays in this browser.";
-
 export const metadata: Metadata = {
-  title: { absolute: title },
-  description,
-  openGraph: {
-    type: "website",
-    siteName: "resync",
-    title,
-    description,
-  },
-  twitter: {
-    card: "summary_large_image",
-    title,
-    description,
-  },
+  title: { absolute: siteTitle },
+  description: siteDescription,
+  ...publicMetadata({ path: "/", title: siteTitle, description: siteDescription }),
 };
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col gap-16 md:gap-24">
-      <section className="grid items-center gap-8 md:grid-cols-[1.05fr_1fr] md:gap-12">
-        <div className="flex flex-col gap-5">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Resume to job, measured
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Find out what a job actually asks for, and where your resume misses it.
+    <div className="flex flex-col gap-28 md:gap-44">
+      <script
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(webApplicationJsonLd(resolveSiteUrl())) }}
+        type="application/ld+json"
+      />
+      <section className="grid items-center gap-12 pt-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] md:gap-10 md:pt-10">
+        <div className="flex flex-col gap-7">
+          <h1 className="display animate-[rise_0.9s_var(--ease-out-expo)_both] motion-reduce:animate-none">
+            Know exactly where your resume <span className="ink">misses</span> the job.
           </h1>
-          <p className="max-w-xl text-base leading-relaxed text-muted-foreground">
-            Add a resume and a posting. The match is computed from a weighted rubric over evidence extracted from
-            both, so every point is traceable and the number repeats on every run. Edits arrive one at a time, and
-            the document is typeset as LaTeX.
+          <p className="lede max-w-xl animate-[rise_0.9s_var(--ease-out-expo)_0.12s_both] text-muted-foreground motion-reduce:animate-none">
+            Add a resume and a posting. The match is a weighted rubric over evidence from both, so every point is
+            traceable and the number repeats on every run. Edits arrive one at a time, typeset as LaTeX.
           </p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Link
-              className={cn(buttonVariants({ size: "lg" }), "h-11 justify-center px-5")}
-              href="/match"
-            >
+          <div className="flex animate-[rise_0.9s_var(--ease-out-expo)_0.24s_both] flex-col gap-3 sm:flex-row motion-reduce:animate-none">
+            <Link className={cn(buttonVariants({ size: "lg" }), "sheen group/cta justify-center")} href="/match">
               Start a match
-              <ArrowRight aria-hidden className="size-4" />
+              <ArrowRight
+                aria-hidden
+                className="size-4 transition-transform duration-300 ease-(--ease-out-expo) group-hover/cta:translate-x-1"
+              />
             </Link>
-            <Link
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-11 justify-center px-5")}
-              href="#how"
-            >
+            <Link className={cn(buttonVariants({ variant: "outline", size: "lg" }), "justify-center")} href="#how">
               How it works
             </Link>
           </div>
-          <FactsChecklist />
+          <div className="animate-[rise_0.9s_var(--ease-out-expo)_0.36s_both] motion-reduce:animate-none">
+            <FactsChecklist />
+          </div>
         </div>
 
-        <HeroVisual />
+        <div className="animate-[rise_1.1s_var(--ease-out-expo)_0.2s_both] motion-reduce:animate-none">
+          <HeroVisual />
+        </div>
       </section>
 
       <HowItWorks />
 
-      <section className="border-t border-border/60 pt-12">
-        <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-          Two things worth knowing before you start.
-        </h2>
-        <dl className="mt-8 grid gap-8 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm font-medium">Only extracted text moves</dt>
-            <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">
+      <section>
+        <h2 className="title reveal max-w-2xl">Two things worth knowing before you start.</h2>
+        <dl className="mt-12 grid gap-5 sm:grid-cols-2">
+          <div className="reveal lift rounded-3xl bg-card p-7 ring-1 ring-foreground/[0.06] md:p-9">
+            <dt className="text-xl font-semibold tracking-tight">Only extracted text moves</dt>
+            <dd className="mt-3 leading-relaxed text-muted-foreground">
               The file you add, the postings you paste, the score and the LaTeX stay in this browser. The plain text
               pulled out of a document is the only thing sent anywhere, and only to structure it.
             </dd>
           </div>
-          <div>
-            <dt className="text-sm font-medium">The score is arithmetic</dt>
-            <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          <div className="reveal lift rounded-3xl bg-card p-7 ring-1 ring-foreground/[0.06] md:p-9">
+            <dt className="text-xl font-semibold tracking-tight">The score is arithmetic</dt>
+            <dd className="mt-3 leading-relaxed text-muted-foreground">
               Every point comes from the rubric over extracted evidence, so the same inputs give the same number and
               each line of the report can be checked by hand.
             </dd>
@@ -89,16 +77,31 @@ export default function HomePage() {
         </dl>
       </section>
 
-      <section className="rounded-2xl border border-border/70 bg-muted/30 px-5 py-8 sm:px-8">
-        <h2 className="text-xl font-semibold tracking-tight text-balance">
-          Start with the resume you already have.
-        </h2>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+      <section className="reveal-slow relative isolate overflow-hidden rounded-[2.5rem] bg-foreground px-7 py-16 text-background sm:px-14 md:py-24">
+        <div
+          aria-hidden
+          className="absolute -right-32 -top-40 -z-10 size-[34rem] rounded-full bg-primary/60 blur-[110px]"
+        />
+        <div
+          aria-hidden
+          className="absolute -bottom-48 -left-24 -z-10 size-[28rem] rounded-full bg-[oklch(0.7_0.17_330)]/35 blur-[110px]"
+        />
+        <h2 className="title max-w-2xl">Start with the resume you already have.</h2>
+        <p className="lede mt-5 max-w-xl text-background/70">
           One resume and one posting is enough for the first match. No account to create, nothing to install.
         </p>
-        <Link className={cn(buttonVariants({ size: "lg" }), "mt-5 h-11 justify-center px-5")} href="/match">
+        <Link
+          className={cn(
+            buttonVariants({ size: "lg" }),
+            "sheen group/cta mt-9 justify-center bg-background text-foreground shadow-(--shadow-float) hover:bg-background"
+          )}
+          href="/match"
+        >
           Start a match
-          <ArrowRight aria-hidden className="size-4" />
+          <ArrowRight
+            aria-hidden
+            className="size-4 transition-transform duration-300 ease-(--ease-out-expo) group-hover/cta:translate-x-1"
+          />
         </Link>
       </section>
     </div>

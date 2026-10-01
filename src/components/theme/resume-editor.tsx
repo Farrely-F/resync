@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Download } from "lucide-react";
 
 import { PreviewPanel } from "@/components/compile/preview-panel";
 import { useCompileEngine } from "@/components/compile/use-compile-engine";
 import { BasicsEditor } from "@/components/editor/basics-editor";
+import { FieldEditConfirm } from "@/components/editor/field-edit-confirm";
 import { CollapsibleSection } from "@/components/editor/collapsible-section";
 import { clearDraft, draftKeyFor, preferNewerRecord, readDraft, writeDraft } from "@/components/editor/draft-journal";
 import { normalizeResume } from "@/components/editor/resume-ops";
@@ -15,14 +16,19 @@ import { saveDebounceMs, useDebouncedSave, type SaveStatus } from "@/components/
 import { LatexSourceEditor } from "@/components/latex-editor/latex-source-editor";
 import { ManualModeBadge } from "@/components/latex-editor/manual-mode-badge";
 import { RegenerateConfirm } from "@/components/latex-editor/regenerate-confirm";
+import { PageLayoutControls } from "@/components/theme/page-layout-controls";
+import { TailoredNotice } from "@/components/theme/tailored-notice";
 import { ThemePicker } from "@/components/theme/theme-picker";
+import { TourLauncher } from "@/components/tour/tour-launcher";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { deriveResumeTitle, type Resume } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
 import type { ResumeRecord } from "@/lib/storage/types";
+import { paperSizes, resolveLayout, type PageLayout } from "@/lib/layout";
 import { resolveTheme, themes } from "@/lib/themes";
-import { applyHandEdit, documentSource, regenerateFromData } from "@/lib/tex/document";
+import { applyFieldEdit, applyHandEdit, documentSource, regenerateFromData } from "@/lib/tex/document";
 import { renderResumeForThemeId, texFileName } from "@/lib/tex/generate";
 
 type EditorState =
@@ -59,6 +65,21 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
    * costs CPU and battery, and a phone on a train is a good reason to stop it.
    */
   const [livePreview, setLivePreview] = useState(true);
+  /**
+   * A field edit that would replace a hand-edited document, held until the reader
+   * answers. Nothing is written while it is set: the resume on screen is still the
+   * one the LaTeX describes.
+   */
+  const [pendingEdit, setPendingEdit] = useState<Resume | null>(null);
+  /**
+   * Which editing surface is on screen. Only one is mounted at a time: the two are
+   * two views of one document, and keeping both alive meant every keystroke
+   * re-rendered both — including a CodeMirror view that was not even visible.
+   *
+   * The first choice follows the resume: a manual resume's document is its LaTeX,
+   * so that is where the reader was working.
+   */
+  const [surface, setSurface] = useState<"fields" | "latex" | null>(null);
   // The newest record, so an edit never has to read the value a render captured.
   const latest = useRef<ResumeRecord | null>(null);
 
@@ -163,10 +184,35 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
       if (!current) {
         return;
       }
-      writeRecord({ ...current, resume: next, updatedAt: new Date().toISOString() });
+
+      const outcome = applyFieldEdit(current, next, new Date().toISOString());
+      if (outcome.replacesManualDocument) {
+        setPendingEdit(next);
+        return;
+      }
+
+      writeRecord(outcome.record);
     },
     [writeRecord],
   );
+
+  /**
+   * The reader chose the fields over their LaTeX. The document is replaced with
+   * it, so the source editor's undo history goes too — it held the text that is
+   * being discarded.
+   */
+  const confirmFieldEdit = useCallback(() => {
+    const current = latest.current;
+    const next = pendingEdit;
+    setPendingEdit(null);
+
+    if (current === null || next === null) {
+      return;
+    }
+
+    writeRecord(applyFieldEdit(current, next, new Date().toISOString()).record);
+    setSourceRevision((revision) => revision + 1);
+  }, [pendingEdit, writeRecord]);
 
   const selectTheme = useCallback(
     (themeId: string) => {
@@ -175,6 +221,17 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         return;
       }
       writeRecord({ ...current, themeId, updatedAt: new Date().toISOString() });
+    },
+    [writeRecord],
+  );
+
+  const changeLayout = useCallback(
+    (layout: PageLayout) => {
+      const current = latest.current;
+      if (!current) {
+        return;
+      }
+      writeRecord({ ...current, layout, updatedAt: new Date().toISOString() });
     },
     [writeRecord],
   );
@@ -229,8 +286,35 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
     () => (state.status === "ready" ? documentSource(state.record).tex : ""),
     [state],
   );
+
+  /**
+   * The same text, one transition behind.
+   *
+   * Typing a character re-derives the document and re-renders the editor; the
+   * surfaces that *show* the document — the LaTeX editor, the preview, and the
+   * source check that gates the engine — do not have to keep up keystroke for
+   * keystroke, and two of them are expensive: reconciling CodeMirror, and parsing
+   * the whole document to validate it. Deferring them keeps the keystroke itself
+   * cheap, and the document they show is the same document a moment later.
+   */
+  const deferredTex = useDeferredValue(documentTex);
+
+  /**
+   * The dropped-character warning describes the generated document, which is not
+   * the document on screen in manual mode. Memoised because it renders the whole
+   * document to find characters the engine cannot typeset, and hoisted above the
+   * branches because a hook cannot live inside one.
+   */
+  const droppedCharacters = useMemo(() => {
+    if (state.status !== "ready" || state.record.mode === "manual") {
+      return [];
+    }
+
+    return renderResumeForThemeId(state.record.resume, state.record.themeId, resolveLayout(state.record.layout))
+      .droppedCharacters;
+  }, [state]);
   const engine = useCompileEngine({
-    tex: documentTex,
+    tex: deferredTex,
     auto: livePreview && state.status === "ready",
   });
 
@@ -245,7 +329,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
   if (state.status !== "ready") {
     return (
       <div className="flex flex-col gap-3 py-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="title">
           {state.status === "missing" ? "Resume not found" : "Local storage is unavailable"}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
@@ -268,18 +352,19 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
   }
 
   const { record } = state;
+
+  if (surface === null) {
+    setSurface(record.mode === "manual" ? "latex" : "fields");
+  }
+
   // Manual mode means the saved LaTeX is the document; editing fields would not
   // reach it, so the fields are shown read-only with the reason next to them.
   const editable = record.mode !== "manual";
   const themeName = resolveTheme(record.themeId).name;
+  const layout = resolveLayout(record.layout);
   // One rule decides which text is the document, and the compile panel is handed
   // the same record so it resolves to the same text.
   const resumeDocument = documentSource(record);
-  // The dropped-character warning describes the generated document, which is not
-  // the document on screen in manual mode.
-  const droppedCharacters = editable
-    ? renderResumeForThemeId(record.resume, record.themeId).droppedCharacters
-    : [];
   const title = deriveResumeTitle(record.resume);
 
   function downloadTex() {
@@ -300,9 +385,12 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
           </Link>{" "}
           / <span className="font-mono">{record.id}</span>
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          {editable ? null : <ManualModeBadge />}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h1 className="title">{title}</h1>
+            {editable ? null : <ManualModeBadge />}
+          </div>
+          <TourLauncher />
         </div>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           {editable
@@ -311,25 +399,32 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         </p>
       </div>
 
+      <TailoredNotice record={record} />
+
       {editable ? null : (
         <Alert>
-          <AlertTitle>Hand-edited LaTeX: field editing is off</AlertTitle>
+          <AlertTitle>Hand-edited LaTeX: the document is yours</AlertTitle>
           <AlertDescription>
             <p>
-              This resume is in manual mode: its document was edited as LaTeX by hand, so it is no longer generated
-              from the fields below. Changing a field would not change your document and would leave the two out of
-              step, so the fields are read-only here. The saved LaTeX itself is untouched.
+              This resume is in manual mode: the LaTeX below was edited by hand, so it is the document, and the fields
+              no longer produce it. Editing a field is still the way back — it regenerates the document from your data,
+              which replaces the LaTeX you wrote. You will be asked first, and the saved LaTeX stays untouched until you
+              answer.
             </p>
             <p>
-              The only way back is to regenerate the document from these fields. That discards the LaTeX you edited by
-              hand, which this browser cannot undo.
+              The other way back is to regenerate now, without editing a field. Either one discards the hand-edited
+              LaTeX, which this browser cannot undo, so download the .tex first if you want to keep it.
             </p>
             <RegenerateConfirm onConfirm={regenerate} />
           </AlertDescription>
         </Alert>
       )}
 
-      <ThemePicker onSelect={selectTheme} selectedId={record.themeId} themes={themes} />
+      <FieldEditConfirm
+        onCancel={() => setPendingEdit(null)}
+        onConfirm={confirmFieldEdit}
+        open={pendingEdit !== null}
+      />
 
       <div className="flex flex-col gap-2">
         <p aria-live="polite" className="text-xs text-muted-foreground">
@@ -354,31 +449,72 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         past the page column on a narrow phone and give the document a horizontal
         scroll.
       */}
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
-        <div className="order-first min-w-0 lg:sticky lg:top-4 lg:order-2 lg:self-start">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <div className="order-first min-w-0 lg:sticky lg:top-4 lg:order-2 lg:self-start" data-tour="editor-preview">
           <PreviewPanel
             engine={engine}
             live={livePreview}
             onLiveChange={setLivePreview}
             onRepair={editSource}
             source={resumeDocument.source}
-            tex={resumeDocument.tex}
+            tex={deferredTex}
             themeName={themeName}
             title={title}
           />
         </div>
 
         <div className="order-2 flex min-w-0 flex-col gap-6 lg:order-1">
-          <fieldset className="m-0 min-w-0 border-0 p-0" disabled={!editable} onBlur={() => void flush()}>
-            <legend className="sr-only">Resume fields</legend>
-            <div className="flex flex-col gap-6">
-              <BasicsEditor onChange={applyResume} resume={record.resume} />
-              <SectionsEditor onChange={applyResume} resume={record.resume} />
-            </div>
-          </fieldset>
-
           <CollapsibleSection
-            actions={
+            headingLevel={2}
+            summary={`${themeName} · ${paperSizes.find((paper) => paper.id === layout.paper)?.name}`}
+            title="Appearance"
+            tourId="editor-theme"
+          >
+            <div className="flex flex-col gap-5">
+              <ThemePicker onSelect={selectTheme} selectedId={record.themeId} themes={themes} />
+              <PageLayoutControls
+                layout={layout}
+                manual={!editable}
+                onChange={changeLayout}
+                themeMargin={resolveTheme(record.themeId).margin}
+              />
+            </div>
+          </CollapsibleSection>
+
+          <Tabs onValueChange={(value) => setSurface(value as "fields" | "latex")} value={surface ?? "fields"}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <TabsList aria-label="Editing surface" className="h-11 sm:h-9">
+                <TabsTrigger className="h-9" value="fields">
+                  Fields
+                </TabsTrigger>
+                <TabsTrigger className="h-9" value="latex">
+                  LaTeX
+                </TabsTrigger>
+              </TabsList>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {surface === "latex"
+                  ? "This text is the document while you edit it here."
+                  : "Editing here regenerates the document from your data."}
+              </p>
+            </div>
+
+            <TabsContent keepMounted={false} value="fields">
+              <fieldset
+              className="m-0 min-w-0 border-0 p-0"
+              data-tour="editor-fields"
+              onBlur={() => void flush()}
+            >
+              <legend className="sr-only">Resume fields</legend>
+              <div className="flex flex-col gap-6">
+                <BasicsEditor onChange={applyResume} resume={record.resume} />
+                <SectionsEditor onChange={applyResume} resume={record.resume} />
+              </div>
+              </fieldset>
+            </TabsContent>
+
+            <TabsContent keepMounted={false} value="latex">
+              <CollapsibleSection
+                actions={
               <>
                 {editable ? null : <ManualModeBadge />}
                 <Button className="h-11" onClick={downloadTex} size="sm" variant="outline">
@@ -388,10 +524,9 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
               </>
             }
             headingLevel={2}
-            summary={`${resumeDocument.tex.split("\n").length} lines, ${(
-              resumeDocument.tex.length / 1024
-            ).toFixed(1)} kB`}
+            summary={`${deferredTex.split("\n").length} lines, ${(deferredTex.length / 1024).toFixed(1)} kB`}
             title="LaTeX source"
+            tourId="editor-latex"
           >
             <p className="text-xs leading-relaxed text-muted-foreground">
               Editing this text by hand takes the resume off the generated path: the document becomes yours, the fields
@@ -416,10 +551,12 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
                 label="LaTeX source"
                 onChange={editSource}
                 revision={sourceRevision}
-                value={resumeDocument.tex}
+                value={deferredTex}
               />
-            </div>
-          </CollapsibleSection>
+              </div>
+            </CollapsibleSection>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

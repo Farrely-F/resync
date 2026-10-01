@@ -28,8 +28,8 @@ const requirements = [
 
 function PreviewFrame({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-3 py-2">
+    <div className="overflow-hidden rounded-3xl bg-card shadow-(--shadow-float) ring-1 ring-foreground/[0.06]">
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/50 px-4 py-2.5">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         <span className="rounded-full border border-border/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
           Example
@@ -196,7 +196,7 @@ export function FactsChecklist() {
     <ul className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-x-6">
       {["No account", "Resumes and postings stay in this browser", "Output is LaTeX"].map((fact) => (
         <li className="flex items-center gap-2" key={fact}>
-          <Check aria-hidden className="size-4 shrink-0 text-foreground" />
+          <Check aria-hidden className="size-4 shrink-0 text-primary" strokeWidth={2.5} />
           {fact}
         </li>
       ))}

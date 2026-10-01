@@ -4,9 +4,9 @@ import { defaultTheme, accentCssColor, getTheme, resolveTheme, themes } from "@/
 import { allowedPackages, forbiddenPackages } from "@/lib/tex/packages";
 
 describe("themes", () => {
-  it("ships three distinct themes", () => {
-    expect(themes).toHaveLength(3);
-    expect(new Set(themes.map((theme) => theme.id)).size).toBe(3);
+  it("ships ten distinct themes", () => {
+    expect(themes).toHaveLength(10);
+    expect(new Set(themes.map((theme) => theme.id)).size).toBe(10);
     for (const theme of themes) {
       expect(theme.name.length).toBeGreaterThan(0);
       expect(theme.description.length).toBeGreaterThan(0);
@@ -27,6 +27,7 @@ describe("themes", () => {
   it("differ from each other in more than their id", () => {
     const shapes = themes.map((theme) =>
       [
+        theme.font,
         theme.header,
         theme.heading,
         theme.density,

@@ -122,7 +122,7 @@ export function BasicsEditor({ resume, onChange }: { resume: Resume; onChange: (
         </p>
 
         {basics.profiles.map((profile, index) => (
-          <div className="flex flex-col gap-2 rounded-md border border-dashed border-border p-2 sm:flex-row sm:items-end" key={index}>
+          <div className="flex flex-col gap-2 rounded-xl bg-background ring-1 ring-foreground/[0.08] p-3 sm:flex-row sm:items-end" key={index}>
             <TextField
               id={`${id}-network-${index}`}
               label="Network"

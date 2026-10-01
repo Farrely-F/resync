@@ -5,30 +5,37 @@ import Link from "next/link";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deriveResumeTitle } from "@/lib/resume/schema";
+import { baselinesFirst, tailoredForLabel } from "@/lib/resume/tailor";
 import type { ResumeRecord } from "@/lib/storage/types";
 
 interface ResumePickerProps {
   resumes: ResumeRecord[];
   loading: boolean;
   selectedId: string | null;
+  /** Posting titles by id, to tell tailored copies (which share a name) apart. */
+  jdTitles?: ReadonlyMap<string, string>;
   onSelect: (id: string) => void;
 }
 
-export function ResumePicker({ resumes, loading, selectedId, onSelect }: ResumePickerProps) {
+export function ResumePicker({ resumes, loading, selectedId, jdTitles = new Map(), onSelect }: ResumePickerProps) {
   if (loading) {
     return <p className="text-sm text-muted-foreground">Loading your resumes…</p>;
   }
 
   if (resumes.length === 0) {
     return (
-      <p className="rounded-lg border border-border/60 px-4 py-6 text-sm text-muted-foreground">
+      <p className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) px-4 py-6 text-sm text-muted-foreground">
         No resumes yet. <Link className="underline underline-offset-4 hover:text-foreground" href="/resumes">Add a resume</Link>{" "}
         first, then come back to compare it with a posting.
       </p>
     );
   }
 
-  const items = resumes.map((resume) => ({ value: resume.id, label: deriveResumeTitle(resume.resume) }));
+  const items = baselinesFirst(resumes).map((resume) => {
+    const tailored = tailoredForLabel(resume, jdTitles);
+    const title = deriveResumeTitle(resume.resume);
+    return { value: resume.id, label: tailored === null ? title : `${title} · ${tailored}` };
+  });
 
   return (
     <div className="flex flex-col gap-2">

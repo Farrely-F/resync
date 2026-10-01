@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Download, FileWarning, Loader2, RefreshCw, Wand2, Zap } from "lucide-react";
 
 import { EngineCacheCard } from "@/components/compile/engine-cache-card";
@@ -26,7 +26,7 @@ import { texFileName } from "@/lib/tex/generate";
  * The panel is explicit about which PDF is on screen: when it is older than the
  * document, it says so rather than letting the reader trust a stale page.
  */
-export function PreviewPanel({
+function PreviewPanelSurface({
   engine,
   tex,
   title,
@@ -272,7 +272,7 @@ export function PreviewPanel({
                 <summary className="cursor-pointer py-1">
                   Engine output ({phase.log.split("\n").length} lines)
                 </summary>
-                <pre className="mt-2 max-h-80 min-w-0 overflow-auto rounded border border-border/60 bg-muted p-2 leading-relaxed">
+                <pre className="mt-2 max-h-80 min-w-0 overflow-auto rounded-xl bg-background ring-1 ring-foreground/[0.08] p-3 leading-relaxed">
                   <code>{phase.log || "(the engine printed nothing)"}</code>
                 </pre>
               </details>
@@ -300,7 +300,7 @@ export function PreviewPanel({
                 : null}
             </p>
             <iframe
-              className="h-80 w-full rounded-md border border-border/60 bg-white sm:h-[28rem] lg:h-[36rem]"
+              className="h-80 w-full rounded-xl bg-white ring-1 ring-foreground/[0.08] shadow-(--shadow-rest) sm:h-[40rem] lg:h-[max(36rem,calc(100dvh-14rem))]"
               src={lastPdf.url}
               title={`Compiled PDF: ${title}`}
             />
@@ -328,8 +328,15 @@ export function PreviewPanel({
       ) : null}
 
       <div className="mt-3">
-        <EngineCacheCard onCleared={engine.refreshGate} refreshToken={engine.cacheToken} />
+        <EngineCacheCard nested onCleared={engine.refreshGate} refreshToken={engine.cacheToken} />
       </div>
     </CollapsibleSection>
   );
 }
+
+/**
+ * Memoised, and the reason the engine's value is memoised too: while a field is
+ * being typed in, the document this panel shows has not changed, so there is
+ * nothing here to re-render — and the panel is a large subtree.
+ */
+export const PreviewPanel = memo(PreviewPanelSurface);

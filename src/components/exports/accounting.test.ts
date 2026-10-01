@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { accountStorage, jsonBytes } from "@/components/exports/accounting";
 import { formatBytes } from "@/lib/compile/assets";
+import type { DocumentRecord } from "@/lib/documents/types";
 import { emptyJd } from "@/lib/jd/schema";
 import type { MatchReport } from "@/lib/match/types";
 import { emptyResume } from "@/lib/resume/schema";
@@ -30,6 +31,21 @@ function jdRecord(overrides: Partial<JdRecord> = {}): JdRecord {
     sourceUrl: null,
     rawText: "We are hiring.",
     structured: emptyJd(),
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function documentRecord(overrides: Partial<DocumentRecord> = {}): DocumentRecord {
+  return {
+    id: "report-1:cover-letter",
+    reportId: "report-1",
+    kind: "cover-letter",
+    content: { shape: "prose", subject: null, body: "Dear hiring team," },
+    editedText: null,
+    model: "openrouter/free",
+    aiMode: "mock",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -66,12 +82,13 @@ describe("jsonBytes", () => {
 
 describe("accountStorage", () => {
   it("reports every store as empty when nothing is stored", () => {
-    const breakdown = accountStorage({ resumes: [], jds: [], reports: [] });
+    const breakdown = accountStorage({ resumes: [], jds: [], reports: [], documents: [] });
 
     expect(breakdown).toEqual({
       resumes: { count: 0, bytes: 0 },
       jds: { count: 0, bytes: 0 },
       reports: { count: 0, bytes: 0 },
+      documents: { count: 0, bytes: 0 },
       totalBytes: 0,
       totalRecords: 0,
     });
@@ -82,21 +99,25 @@ describe("accountStorage", () => {
     const resume = resumeRecord();
     const jd = jdRecord();
     const report = reportRecord();
-    const breakdown = accountStorage({ resumes: [resume], jds: [jd], reports: [report] });
+    const document = documentRecord();
+    const breakdown = accountStorage({ resumes: [resume], jds: [jd], reports: [report], documents: [document] });
 
     expect(breakdown.resumes).toEqual({ count: 1, bytes: jsonBytes(resume) });
     expect(breakdown.jds).toEqual({ count: 1, bytes: jsonBytes(jd) });
     expect(breakdown.reports).toEqual({ count: 1, bytes: jsonBytes(report) });
-    expect(breakdown.totalBytes).toBe(jsonBytes(resume) + jsonBytes(jd) + jsonBytes(report));
-    expect(breakdown.totalRecords).toBe(3);
+    expect(breakdown.documents).toEqual({ count: 1, bytes: jsonBytes(document) });
+    expect(breakdown.totalBytes).toBe(
+      jsonBytes(resume) + jsonBytes(jd) + jsonBytes(report) + jsonBytes(document),
+    );
+    expect(breakdown.totalRecords).toBe(4);
   });
 
   it("grows by exactly the bytes a record gains, so the figure is a measurement", () => {
     const short = jdRecord({ rawText: "one" });
     const longer = jdRecord({ rawText: `one${"x".repeat(500)}` });
 
-    const before = accountStorage({ resumes: [], jds: [short], reports: [] });
-    const after = accountStorage({ resumes: [], jds: [longer], reports: [] });
+    const before = accountStorage({ resumes: [], jds: [short], reports: [], documents: [] });
+    const after = accountStorage({ resumes: [], jds: [longer], reports: [], documents: [] });
 
     expect(after.jds.bytes - before.jds.bytes).toBe(500);
     expect(after.totalRecords).toBe(before.totalRecords);
@@ -107,6 +128,7 @@ describe("accountStorage", () => {
       resumes: [resumeRecord({ id: "a" }), resumeRecord({ id: "b", plainText: "second" })],
       jds: [],
       reports: [reportRecord({ id: "r1" }), reportRecord({ id: "r2" }), reportRecord({ id: "r3" })],
+      documents: [],
     });
 
     expect(breakdown.resumes.count).toBe(2);

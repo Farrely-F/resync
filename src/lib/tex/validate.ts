@@ -50,8 +50,52 @@ interface ParsedNode {
 
 const processor = processLatexToAstViaUnified();
 
+/**
+ * Commands whose argument is read verbatim rather than as TeX.
+ *
+ * `\url{...}` and the first argument of `\href{...}` set their own catcodes, so a
+ * `%` inside them is a literal percent sign and not the start of a comment. The
+ * parser used here does not know that: it reads the rest of the line as a comment,
+ * the argument's closing brace goes with it, and the document is reported as
+ * having an unclosed brace.
+ *
+ * That is not hypothetical. `latexUrl` percent-encodes what it is given, because
+ * `\url` wants ASCII — so a URL containing a quote, a space, a `<` or a literal
+ * `%` becomes `%22`, `%20`, `%3C` or `%25`, and any resume with such a link was
+ * refused a preview for a document that compiles.
+ */
+const verbatimCommands = ["url", "href"] as const;
+
+/**
+ * Replaces the bodies of verbatim arguments with filler of exactly the same
+ * length, so the parse tree sees nothing it can misread while every other problem
+ * is still reported at the line and column it really has.
+ */
+export function maskVerbatimArguments(tex: string): string {
+  // Indexed by UTF-16 unit, which is what the offsets from `matchAll` are.
+  const characters = tex.split("");
+  const pattern = new RegExp(`\\\\(${verbatimCommands.join("|")})\\s*\\{`, "g");
+
+  for (const match of tex.matchAll(pattern)) {
+    const open = match.index + match[0].length;
+    const close = tex.indexOf("}", open);
+    if (close === -1) {
+      continue;
+    }
+
+    for (let index = open; index < close; index += 1) {
+      // Newlines stay, because they carry the line numbering of everything after.
+      if (characters[index] !== "\n") {
+        characters[index] = "x";
+      }
+    }
+  }
+
+  return characters.join("");
+}
+
 function parse(tex: string): ParsedNode {
-  return processor.runSync(processor.parse(tex)) as unknown as ParsedNode;
+  return processor.runSync(processor.parse(maskVerbatimArguments(tex))) as unknown as ParsedNode;
 }
 
 function lineOf(node: ParsedNode): number {

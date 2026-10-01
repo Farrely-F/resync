@@ -17,7 +17,7 @@ export const aiModes = ["mock", "live"] as const;
 
 export type AiMode = (typeof aiModes)[number];
 
-export const aiProviders = ["openrouter", "groq"] as const;
+export const aiProviders = ["openrouter", "groq", "fireworks"] as const;
 
 export type AiProvider = (typeof aiProviders)[number];
 
@@ -39,13 +39,26 @@ export const providerDefaults: Record<AiProvider, ProviderDefaults> = {
     label: "OpenRouter",
     keyVariable: "OPENROUTER_API_KEY",
     model: "openrouter/free",
-    fallbacks: ["qwen/qwen3.8-27b:free", "nvidia/nemotron-3-super-120b-a12b:free", "dots-studio/dots-3-note-preview:free"],
+    fallbacks: [
+      "qwen/qwen3.8-27b:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "dots-studio/dots-3-note-preview:free",
+    ],
   },
   groq: {
     label: "Groq",
     keyVariable: "GROQ_API_KEY",
     model: "llama-3.3-70b-versatile",
     fallbacks: ["openai/gpt-oss-120b", "qwen/qwen3.6-27b"],
+  },
+  fireworks: {
+    label: "Fireworks AI",
+    keyVariable: "FIREWORKS_API_KEY",
+    model: "accounts/fireworks/models/gpt-oss-120b",
+    fallbacks: [
+      "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+      "accounts/fireworks/models/glm-5p3-flash",
+    ],
   },
 };
 
@@ -84,7 +97,11 @@ export class EnvError extends Error {
   readonly issues: readonly string[];
 
   constructor(issues: readonly string[]) {
-    super(`Invalid environment configuration:\n${issues.map((issue) => `  - ${issue}`).join("\n")}`);
+    super(
+      `Invalid environment configuration:\n${issues
+        .map((issue) => `  - ${issue}`)
+        .join("\n")}`,
+    );
     this.name = "EnvError";
     this.issues = issues;
   }
@@ -101,7 +118,10 @@ function nonEmpty(value: string | undefined): string | undefined {
  * from an absent one only for fallbacks, where it means "nothing to fall back to".
  */
 function itemList(value: string | undefined): readonly string[] | undefined {
-  const entries = value?.split(",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  const entries = value
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
   return entries === undefined || entries.length === 0 ? undefined : entries;
 }
 
@@ -127,10 +147,18 @@ function parseTarget(entry: string, primary: AiProvider): ModelTarget | string {
   const modelId = entry.slice(separator + 1).trim();
 
   if (!isProvider(provider)) {
-    return `FALLBACK_MODEL_IDS entry ${JSON.stringify(entry)} names an unknown provider ${JSON.stringify(provider)} before "@"; expected one of ${aiProviders.join(", ")} or a bare model id`;
+    return `FALLBACK_MODEL_IDS entry ${JSON.stringify(
+      entry,
+    )} names an unknown provider ${JSON.stringify(
+      provider,
+    )} before "@"; expected one of ${aiProviders.join(
+      ", ",
+    )} or a bare model id`;
   }
   if (modelId.length === 0) {
-    return `FALLBACK_MODEL_IDS entry ${JSON.stringify(entry)} has no model id after "@"`;
+    return `FALLBACK_MODEL_IDS entry ${JSON.stringify(
+      entry,
+    )} has no model id after "@"`;
   }
 
   return { provider, modelId };
@@ -147,7 +175,9 @@ export function parseEnv(
   // the user believes otherwise. Say so instead of ignoring it.
   for (const [oldName, newName] of renamedVariables) {
     if (nonEmpty(raw[oldName]) !== undefined) {
-      issues.push(`${oldName} was renamed to ${newName}; ${oldName} is no longer read`);
+      issues.push(
+        `${oldName} was renamed to ${newName}; ${oldName} is no longer read`,
+      );
     }
   }
 
@@ -159,7 +189,9 @@ export function parseEnv(
     }
   }
 
-  const configured = aiProviders.filter((provider) => apiKeys[provider] !== undefined);
+  const configured = aiProviders.filter(
+    (provider) => apiKeys[provider] !== undefined,
+  );
 
   const rawProvider = nonEmpty(raw.AI_PROVIDER);
   let provider: AiProvider;
@@ -167,7 +199,11 @@ export function parseEnv(
     if (isProvider(rawProvider)) {
       provider = rawProvider;
     } else {
-      issues.push(`AI_PROVIDER must be one of ${aiProviders.join(", ")} (received ${JSON.stringify(rawProvider)})`);
+      issues.push(
+        `AI_PROVIDER must be one of ${aiProviders.join(
+          ", ",
+        )} (received ${JSON.stringify(rawProvider)})`,
+      );
       provider = "openrouter";
     }
   } else if (configured.length === 1) {
@@ -206,7 +242,10 @@ export function parseEnv(
       if (other === provider) {
         continue;
       }
-      fallbacks.push({ provider: other, modelId: providerDefaults[other].model });
+      fallbacks.push({
+        provider: other,
+        modelId: providerDefaults[other].model,
+      });
     }
   }
 
@@ -216,7 +255,11 @@ export function parseEnv(
     if ((aiModes as readonly string[]).includes(rawMode)) {
       aiMode = rawMode as AiMode;
     } else {
-      issues.push(`AI_MODE must be one of ${aiModes.join(", ")} (received ${JSON.stringify(rawMode)})`);
+      issues.push(
+        `AI_MODE must be one of ${aiModes.join(
+          ", ",
+        )} (received ${JSON.stringify(rawMode)})`,
+      );
       aiMode = "mock";
     }
   } else if (configured.length > 0 || nodeEnv === "production") {
@@ -228,7 +271,9 @@ export function parseEnv(
   if (aiMode === "live" && apiKeys[provider] === undefined) {
     issues.push(
       `AI_PROVIDER=${provider} needs ${providerDefaults[provider].keyVariable}; set it in .env.local, choose another provider, or set AI_MODE=mock to run against recorded fixtures` +
-        (rawFallbacks === undefined ? "" : ` (${rawFallbacks} does not help: a fallback needs its own provider's key)`),
+        (rawFallbacks === undefined
+          ? ""
+          : ` (${rawFallbacks} does not help: a fallback needs its own provider's key)`),
     );
   }
 
@@ -271,7 +316,8 @@ export function summariseAiMode(
 ): AiModeSummary {
   const explicit = nonEmpty(raw.AI_MODE) !== undefined;
   const providersWithKeys = aiProviders.filter(
-    (provider) => nonEmpty(raw[providerDefaults[provider].keyVariable]) !== undefined,
+    (provider) =>
+      nonEmpty(raw[providerDefaults[provider].keyVariable]) !== undefined,
   );
 
   try {

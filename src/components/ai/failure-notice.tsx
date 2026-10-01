@@ -71,7 +71,7 @@ export function AiFailureNotice({ kind, message, retryAfterSeconds, busy, onRetr
 
   return (
     <div
-      className="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4"
+      className="flex flex-col gap-3 rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4"
       data-failure-kind={kind}
       role="alert"
     >

@@ -48,7 +48,8 @@ export function JdSourceForm({
     >
       <ToggleGroup
         aria-label="Job description source"
-        className="w-full"
+        className="w-full rounded-full bg-muted p-1 ring-1 ring-foreground/[0.06] shadow-[inset_0_1px_2px_oklch(0.2_0.03_265/0.06)]"
+        spacing={1}
         onValueChange={(value) => {
           const next = value[0];
           if (next === "paste" || next === "url") {
@@ -58,7 +59,11 @@ export function JdSourceForm({
         value={[mode]}
       >
         {modes.map((value) => (
-          <ToggleGroupItem className="min-h-11 flex-1" key={value} value={value}>
+          <ToggleGroupItem
+            className="min-h-10 flex-1 rounded-full! text-muted-foreground transition-[background-color,color,box-shadow] duration-300 ease-(--ease-out-expo) hover:bg-transparent! hover:text-foreground aria-pressed:bg-card! aria-pressed:text-foreground aria-pressed:shadow-(--shadow-rest) aria-pressed:ring-1 aria-pressed:ring-foreground/[0.06]"
+            key={value}
+            value={value}
+          >
             {modeLabels[value]}
           </ToggleGroupItem>
         ))}

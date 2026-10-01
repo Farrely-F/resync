@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseResumeFixture } from "@/lib/resume/fixtures";
 import type { ResumeRecord } from "@/lib/storage/types";
-import { applyHandEdit, documentSource, regenerateFromData } from "@/lib/tex/document";
+import { applyFieldEdit, applyHandEdit, documentSource, regenerateFromData } from "@/lib/tex/document";
 import { renderResumeForThemeId } from "@/lib/tex/generate";
 
 const handWritten = "\\documentclass{article}\n\\begin{document}\nHAND WRITTEN MARKER\n\\end{document}\n";
@@ -113,5 +113,37 @@ describe("regenerateFromData", () => {
     const stored = record();
 
     expect(regenerateFromData(stored, "2026-02-02T00:00:00.000Z")).toBe(stored);
+  });
+});
+
+describe("applyFieldEdit", () => {
+  const edited = { ...parseResumeFixture, basics: { ...parseResumeFixture.basics, name: "Ada Lovelace" } };
+
+  it("applies an edit to a structured resume without touching the document", () => {
+    const before = record();
+
+    const outcome = applyFieldEdit(before, edited, "2026-03-03T00:00:00.000Z");
+
+    expect(outcome.replacesManualDocument).toBe(false);
+    expect(outcome.record.resume.basics.name).toBe("Ada Lovelace");
+    expect(outcome.record.mode).toBe("structured");
+    expect(outcome.record.updatedAt).toBe("2026-03-03T00:00:00.000Z");
+    // The hand-edited LaTeX field is untouched, because there was none.
+    expect(outcome.record.manualTex).toBeNull();
+  });
+
+  it("ends manual mode, and says that it did", () => {
+    // The document is the reader's hand-written text, so editing the fields
+    // replaces it: that is the fact the caller has to put in front of them.
+    const outcome = applyFieldEdit(
+      record({ mode: "manual", manualTex: handWritten }),
+      edited,
+      "2026-03-03T00:00:00.000Z",
+    );
+
+    expect(outcome.replacesManualDocument).toBe(true);
+    expect(outcome.record).toMatchObject({ mode: "structured", manualTex: null });
+    expect(outcome.record.resume.basics.name).toBe("Ada Lovelace");
+    expect(documentSource(outcome.record).source).toBe("generated");
   });
 });

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { isDevelopment } from "@/lib/dev-only";
 import { scoreCriteria, type RubricResult } from "@/lib/match/rubric";
 import type { CriterionKind, MatchReport } from "@/lib/match/types";
 import type { ResumeRecord, JdRecord } from "@/lib/storage/types";
@@ -39,10 +40,10 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
   const { criterion, weight, credit, earned, counted } = row;
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
       <p className="text-sm font-medium">{criterion.requirement}</p>
       <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="rounded-md bg-muted px-2 py-0.5 text-foreground">{kindLabels[criterion.kind]}</span>
+        <span className="rounded-full bg-secondary px-2.5 py-0.5 text-foreground">{kindLabels[criterion.kind]}</span>
         <span className={criterion.verdict === "missing" ? "text-destructive" : "text-foreground"}>
           {verdictLabels[criterion.verdict]}
         </span>
@@ -52,7 +53,7 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
         {!counted ? <span>left out of the total: an unmet optional item is not a penalty</span> : null}
       </p>
       {criterion.evidence ? (
-        <blockquote className="border-l-2 border-border pl-3 text-xs leading-relaxed text-muted-foreground">
+        <blockquote className="rounded-lg bg-background px-3 py-2 ring-1 ring-foreground/[0.06] text-xs leading-relaxed text-muted-foreground">
           {criterion.evidence}
         </blockquote>
       ) : null}
@@ -62,7 +63,7 @@ function CriterionRow({ row }: { row: RubricResult["rows"][number] }) {
 
 function CheckRow({ check }: { check: MatchReport["atsChecks"][number] }) {
   return (
-    <li className="flex flex-col gap-1 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-1 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
       <p className="flex items-center gap-2 text-sm font-medium">
         <span
           aria-hidden
@@ -122,7 +123,7 @@ export function ReportView({ id }: { id: string }) {
 
   if (loaded.failed !== null) {
     return (
-      <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm" role="alert">
+      <p className="rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4 text-sm" role="alert">
         This browser would not open its local storage, so the report could not be read ({loaded.failed}).
       </p>
     );
@@ -132,7 +133,7 @@ export function ReportView({ id }: { id: string }) {
   if (report === null) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="rounded-lg border border-border/60 p-4 text-sm text-muted-foreground">
+        <p className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4 text-sm text-muted-foreground">
           No report with id <span className="font-mono text-foreground">{id}</span> is stored in this browser. Reports
           live in this browser only, so a link from another device or profile will not resolve here.
         </p>
@@ -149,14 +150,14 @@ export function ReportView({ id }: { id: string }) {
 
   return (
     <article className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
+      <header className="flex flex-col gap-2" data-tour="report-score">
         <p className="text-4xl font-semibold tracking-tight">{formatScore(rubric.score)}%</p>
         <p className="text-sm text-muted-foreground">
-          Computed here from {report.criteria.length} criteria by rubric v{rubric.rubricVersion}, not returned by the
-          model.
+          Computed here from {report.criteria.length} criteria
+          {isDevelopment ? ` by rubric v${rubric.rubricVersion}` : ""}, not returned by the model.
         </p>
-        {drifted ? (
-          <p className="rounded-lg border border-border/60 p-3 text-xs leading-relaxed text-muted-foreground">
+        {isDevelopment && drifted ? (
+          <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-xs leading-relaxed text-muted-foreground">
             This report was saved under rubric v{report.rubricVersion} with a score of {formatScore(report.score)}%. The
             weights have changed since, so re-scoring the stored criteria now gives {formatScore(rubric.score)}%. The
             evidence is unchanged.
@@ -167,7 +168,7 @@ export function ReportView({ id }: { id: string }) {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">The inputs</h2>
         {resume === null || jd === null ? (
-          <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card p-3 text-sm leading-relaxed text-muted-foreground">
             The inputs are gone: the{" "}
             {[resume === null ? "resume" : null, jd === null ? "job description" : null]
               .filter((part): part is string => part !== null)
@@ -192,7 +193,7 @@ export function ReportView({ id }: { id: string }) {
         )}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="report-criteria">
         <h2 className="text-sm font-semibold">Requirements the resume does not cover</h2>
         {missing.length === 0 ? (
           <p className="text-sm text-muted-foreground">Every criterion the analysis produced is met or partly met.</p>
@@ -216,7 +217,7 @@ export function ReportView({ id }: { id: string }) {
         )}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="report-arithmetic">
         <h2 className="text-sm font-semibold">How the score is made</h2>
         <p className="text-xs leading-relaxed text-muted-foreground">
           score = 100 × earned ÷ available = 100 × {formatPoints(rubric.earned)} ÷ {formatPoints(rubric.possible)} ={" "}
@@ -234,7 +235,7 @@ export function ReportView({ id }: { id: string }) {
         {report.summary === null ? (
           <p className="text-sm text-muted-foreground">The model returned no commentary for this analysis.</p>
         ) : (
-          <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-relaxed text-muted-foreground">
+          <p className="rounded-2xl border border-dashed border-foreground/15 bg-card p-3 text-sm leading-relaxed text-muted-foreground">
             {report.summary}
           </p>
         )}
@@ -258,10 +259,10 @@ export function ReportView({ id }: { id: string }) {
 
       <footer className="flex flex-col gap-1 border-t border-border/60 pt-3 text-xs text-muted-foreground">
         <p>
-          Model {report.model} · mode {report.aiMode} · rubric v{report.rubricVersion} · saved{" "}
-          {new Date(report.createdAt).toLocaleString()}
+          {isDevelopment ? `Model ${report.model} · mode ${report.aiMode} · rubric v${report.rubricVersion} · ` : null}
+          Saved {new Date(report.createdAt).toLocaleString()}
         </p>
-        <p className="break-all">Input hash {report.inputHash}</p>
+        {isDevelopment ? <p className="break-all">Input hash {report.inputHash}</p> : null}
         <p>
           Stored in this browser only.{" "}
           <Link className="underline underline-offset-4 hover:text-foreground" href="/match">

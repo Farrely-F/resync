@@ -135,6 +135,7 @@ export function SortableItem({
   as: Element = "li",
   className,
   labelledBy,
+  tourId,
   children,
 }: {
   id: string;
@@ -147,6 +148,8 @@ export function SortableItem({
    * announced by its heading rather than by everything inside it.
    */
   labelledBy?: string;
+  /** The `data-tour` id a guided tour step points at this box with. */
+  tourId?: string;
   children: (handle: ReactNode) => ReactNode;
 }) {
   const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -177,6 +180,7 @@ export function SortableItem({
   return (
     <Element
       aria-labelledby={labelledBy}
+      data-tour={tourId}
       className={cn(
         // The item that is being dragged has to sit above its neighbours, and a
         // shadow is what says so; without it the row looks like it was removed.

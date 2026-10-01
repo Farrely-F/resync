@@ -1,3 +1,5 @@
+import { resolveLayout } from "@/lib/layout";
+import type { Resume } from "@/lib/resume/schema";
 import type { ResumeRecord } from "@/lib/storage/types";
 import { renderResumeForThemeId } from "@/lib/tex/generate";
 
@@ -40,7 +42,7 @@ export function documentSource(record: ResumeRecord): ResumeDocument {
     return { tex: record.manualTex, source: "manual" };
   }
 
-  return { tex: renderResumeForThemeId(record.resume, record.themeId).tex, source: "generated" };
+  return { tex: renderResumeForThemeId(record.resume, record.themeId, resolveLayout(record.layout)).tex, source: "generated" };
 }
 
 /**
@@ -81,4 +83,36 @@ export function regenerateFromData(record: ResumeRecord, now: string): ResumeRec
   }
 
   return { ...record, mode: "structured", manualTex: null, updatedAt: now };
+}
+
+export interface FieldEditOutcome {
+  record: ResumeRecord;
+  /**
+   * True when applying this edit replaces a hand-edited document, which the caller
+   * has to say out loud before it happens.
+   */
+  replacesManualDocument: boolean;
+}
+
+/**
+ * The record after an edit to the fields.
+ *
+ * A structured resume simply takes the new data. A manual one cannot: its
+ * hand-edited LaTeX *is* its document, and rewriting the fields underneath it
+ * would leave the two out of step with no way to tell which one the reader meant.
+ * So a field edit is what ends manual mode — and because that discards text the
+ * reader wrote, the caller must ask first, which is what the flag is for.
+ *
+ * This is the closest thing to two-way sync the format allows. Fields to document
+ * is exact, because the generator owns the format; document to fields is not, in
+ * general, because hand-written LaTeX can say things the model cannot hold. Rather
+ * than pretend otherwise, the app keeps one direction exact and makes the other
+ * an explicit choice.
+ */
+export function applyFieldEdit(record: ResumeRecord, next: Resume, now: string): FieldEditOutcome {
+  if (record.mode !== "manual") {
+    return { record: { ...record, resume: next, updatedAt: now }, replacesManualDocument: false };
+  }
+
+  return { record: regenerateFromData({ ...record, resume: next }, now), replacesManualDocument: true };
 }

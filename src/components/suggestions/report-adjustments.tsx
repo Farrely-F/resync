@@ -7,6 +7,7 @@ import { SuggestionsPanel } from "@/components/suggestions/suggestions-panel";
 import type { MatchReport } from "@/lib/match/types";
 import { getStorage } from "@/lib/storage";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
+import { findTailoredCopy, isTailoredCopy } from "@/lib/resume/tailor";
 import { reportFreshness, type Freshness } from "@/lib/suggestions/freshness";
 
 /**
@@ -25,6 +26,8 @@ interface Loaded {
   report: MatchReport | null;
   resume: ResumeRecord | null;
   jd: JdRecord | null;
+  /** The copy of `resume` tailored for this posting, once an accepted proposal has made it. */
+  copy: ResumeRecord | null;
 }
 
 export function ReportAdjustments({ id, children }: { id: string; children: ReactNode }) {
@@ -41,7 +44,7 @@ export function ReportAdjustments({ id, children }: { id: string; children: Reac
 
       if (report === null) {
         if (!cancelled) {
-          setLoaded({ report: null, resume: null, jd: null });
+          setLoaded({ report: null, resume: null, jd: null, copy: null });
           setFreshness(null);
         }
 
@@ -53,11 +56,18 @@ export function ReportAdjustments({ id, children }: { id: string; children: Reac
         return;
       }
 
-      setLoaded({ report, resume, jd });
+      const copy = findTailoredCopy(await storage.listResumes(), report.resumeId, report.jdId);
+      if (cancelled) {
+        return;
+      }
+
+      // The score describes the baseline it was computed from, which accepting
+      // into a copy leaves alone: freshness is read from the baseline.
+      setLoaded({ report, resume, jd, copy });
       setFreshness(await reportFreshness({ report, resume, jd }));
     })().catch(() => {
       if (!cancelled) {
-        setLoaded({ report: null, resume: null, jd: null });
+        setLoaded({ report: null, resume: null, jd: null, copy: null });
         setFreshness(null);
       }
     });
@@ -69,10 +79,14 @@ export function ReportAdjustments({ id, children }: { id: string; children: Reac
 
   const reload = useCallback(() => setRevision((value) => value + 1), []);
 
+  // A report can also have been run against a copy, which is then the thing being edited.
+  const tailoredCopy =
+    loaded?.copy ?? (loaded?.resume != null && isTailoredCopy(loaded.resume) ? loaded.resume : null);
+
   return (
     <div className="flex flex-col gap-6">
       {freshness === "changed" ? (
-        <p className="rounded-lg border border-border/60 bg-muted/40 p-3 text-xs leading-relaxed" role="status">
+        <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-xs leading-relaxed" role="status">
           The resume or posting behind this report has changed since it was saved, so the numbers below describe the
           earlier version — they are not the score of what is stored now. Analysing the current version produces a new
           report.{" "}
@@ -87,7 +101,13 @@ export function ReportAdjustments({ id, children }: { id: string; children: Reac
       {children}
 
       {loaded?.report ? (
-        <SuggestionsPanel jd={loaded.jd} onResumeChanged={reload} report={loaded.report} resume={loaded.resume} />
+        <SuggestionsPanel
+          jd={loaded.jd}
+          onResumeChanged={reload}
+          report={loaded.report}
+          resume={tailoredCopy ?? loaded.resume}
+          tailoredCopy={tailoredCopy}
+        />
       ) : null}
     </div>
   );

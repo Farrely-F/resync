@@ -8,10 +8,12 @@ import { cn } from "@/lib/utils";
 /**
  * Theme selection for the resume editor.
  *
- * A radio group from the registry: the whole card is the label of one radio, so
- * the group is reachable by keyboard, announced as a radio group, and the selected
- * card is marked by the radio itself (`has-checked:`) rather than by a second
- * piece of component state that could disagree with it.
+ * A radio group from the registry: each chip is the label of one radio, so the
+ * group is reachable by keyboard, announced as a radio group, and the selected
+ * chip is marked by the radio itself (`has-checked:`) rather than by a second
+ * piece of component state that could disagree with it. The chips carry only the
+ * name and the accent; the selected theme's description is read out below them,
+ * so ten themes take two rows instead of four.
  */
 export function ThemePicker({
   themes,
@@ -24,12 +26,14 @@ export function ThemePicker({
   onSelect: (themeId: string) => void;
   disabled?: boolean;
 }) {
+  const selected = themes.find((theme) => theme.id === selectedId) ?? themes[0];
+
   return (
     <div className="flex flex-col gap-3">
-      <span className="text-sm font-medium">Theme</span>
+      <span className="text-xs font-medium text-muted-foreground">Theme</span>
       <RadioGroup
         aria-label="Theme"
-        className="grid gap-3 sm:grid-cols-3"
+        className="flex flex-wrap gap-2"
         disabled={disabled}
         onValueChange={(value) => onSelect(String(value))}
         value={selectedId}
@@ -41,29 +45,27 @@ export function ThemePicker({
           return (
             <Label
               className={cn(
-                "min-h-11 flex-row items-start gap-3 rounded-lg border border-border/60 p-3 leading-normal font-normal transition-colors",
-                "has-checked:border-foreground has-checked:bg-muted hover:bg-muted/50",
+                "relative min-h-11 w-auto flex-row items-center gap-2 rounded-full bg-card px-3.5 text-sm font-medium ring-1 ring-foreground/[0.08] shadow-(--shadow-rest) transition-[box-shadow,background-color] duration-300",
+                "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring hover:shadow-(--shadow-lift) has-checked:bg-accent has-checked:ring-2 has-checked:ring-primary has-checked:shadow-(--shadow-lift)",
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
               )}
               htmlFor={id}
               key={theme.id}
             >
-              <RadioGroupItem className="mt-0.5" id={id} value={theme.id} />
-              <span className="flex flex-col gap-1">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <span
-                    aria-hidden
-                    className="size-3.5 shrink-0 rounded-full border border-border"
-                    style={accent ? { backgroundColor: accent } : undefined}
-                  />
-                  {theme.name}
-                </span>
-                <span className="text-xs leading-relaxed text-muted-foreground">{theme.description}</span>
-              </span>
+              <RadioGroupItem className="absolute size-px! opacity-0 after:hidden" id={id} value={theme.id} />
+              <span
+                aria-hidden
+                className="size-3 shrink-0 rounded-full border border-border bg-foreground/10"
+                style={accent ? { backgroundColor: accent } : undefined}
+              />
+              {theme.name}
             </Label>
           );
         })}
       </RadioGroup>
+      <p aria-live="polite" className="text-xs leading-relaxed text-muted-foreground">
+        {selected.description}
+      </p>
     </div>
   );
 }

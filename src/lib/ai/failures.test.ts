@@ -67,6 +67,14 @@ describe("toAiFailure", () => {
     expect(toAiFailure(new TypeError("Failed to fetch")).kind).toBe("offline");
   });
 
+  it("reads Node's connect failure, an empty AggregateError under a status-less provider error, as unreachable", () => {
+    // What the AI SDK throws when every address Node tried failed to connect: the message
+    // is "Cannot connect to API: " and the only detail is an AggregateError with no text.
+    const connect = apiCallError({ cause: new AggregateError([new Error("connect ENETUNREACH"), new Error("connect ETIMEDOUT")]) });
+
+    expect(toAiFailure(connect).kind).toBe("offline");
+  });
+
   it("reads an abort as the deadline, including one wrapped by the provider", () => {
     expect(toAiFailure(new DOMException("aborted", "TimeoutError")).kind).toBe("timeout");
     expect(toAiFailure(new DOMException("aborted", "AbortError")).kind).toBe("timeout");

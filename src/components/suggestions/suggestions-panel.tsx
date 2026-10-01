@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { AiFailureNotice } from "@/components/ai/failure-notice";
+import { isDevelopment } from "@/lib/dev-only";
 import { toRequestFailure, type AiFailureError } from "@/lib/ai/failures";
 import { browserUsageStore, recordModelRequest } from "@/lib/ai/usage";
 import type { CriterionKind, MatchReport } from "@/lib/match/types";
@@ -12,7 +15,7 @@ import { getStorage } from "@/lib/storage";
 import { requestSuggestions } from "@/lib/suggestions/api";
 import { applyRefusalMessages } from "@/lib/suggestions/apply";
 import { browserDecisionStore, clearDecision, readDecisions, recordDecision, type DecisionMap } from "@/lib/suggestions/decisions";
-import { acceptSuggestion } from "@/lib/suggestions/service";
+import { acceptSuggestion, ensureTailoredCopy } from "@/lib/suggestions/service";
 import { describeTarget, readTargetText } from "@/lib/suggestions/targets";
 import type { DropReason, DroppedSuggestion, Suggestion } from "@/lib/suggestions/types";
 
@@ -74,12 +77,14 @@ interface SuggestionCardProps {
   resume: ResumeRecord | null;
   decision: "accepted" | "rejected" | undefined;
   busy: boolean;
+  /** Another accept is in flight: two at once could each create the copy. */
+  locked: boolean;
   applyError: string | null;
   onAccept: (suggestion: Suggestion) => void;
   onReject: (suggestion: Suggestion) => void;
 }
 
-function SuggestionCard({ suggestion, report, resume, decision, busy, applyError, onAccept, onReject }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, report, resume, decision, busy, locked, applyError, onAccept, onReject }: SuggestionCardProps) {
   const criterion = report.criteria.find((entry) => entry.id === suggestion.criterionId);
   const manual = resume?.mode === "manual";
   const stale = resume !== null && readTargetText(resume.resume, suggestion.target) !== suggestion.current;
@@ -87,7 +92,7 @@ function SuggestionCard({ suggestion, report, resume, decision, busy, applyError
   const blocked = manual === true ? applyRefusalMessages["manual-mode"] : stale ? applyRefusalMessages["stale-target"] : null;
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
       <p className="text-sm font-medium">{suggestion.requirement}</p>
       <p className="text-xs text-muted-foreground">
         {criterion === undefined
@@ -99,12 +104,12 @@ function SuggestionCard({ suggestion, report, resume, decision, busy, applyError
 
       <div className="flex flex-col gap-1">
         <p className="text-xs font-medium text-muted-foreground">Now</p>
-        <p className="rounded-md bg-muted/50 p-2 text-xs leading-relaxed break-words">{suggestion.current}</p>
+        <p className="rounded-lg bg-background ring-1 ring-foreground/[0.08] p-2.5 text-xs leading-relaxed break-words">{suggestion.current}</p>
       </div>
 
       <div className="flex flex-col gap-1">
         <p className="text-xs font-medium text-muted-foreground">Proposed</p>
-        <p className="rounded-md border border-border/60 p-2 text-xs leading-relaxed break-words">{suggestion.proposed}</p>
+        <p className="rounded-xl bg-background ring-1 ring-foreground/[0.08] p-2.5 text-xs leading-relaxed break-words">{suggestion.proposed}</p>
       </div>
 
       <p className="text-xs leading-relaxed text-muted-foreground">Why: {suggestion.rationale}</p>
@@ -112,20 +117,20 @@ function SuggestionCard({ suggestion, report, resume, decision, busy, applyError
       {blocked === null ? null : <p className="text-xs leading-relaxed text-muted-foreground">{blocked}</p>}
 
       {applyError === null ? null : (
-        <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs leading-relaxed" role="alert">
+        <p className="rounded-xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-2.5 text-xs leading-relaxed" role="alert">
           {applyError}
         </p>
       )}
 
       {accepted ? (
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Accepted and stored in your resume. The report above was computed before this change.
+          Accepted and stored in the tailored copy. The report above was computed before this change.
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button
             className="h-11 flex-1 sm:flex-none"
-            disabled={busy || blocked !== null}
+            disabled={busy || locked || blocked !== null}
             onClick={() => onAccept(suggestion)}
             title={blocked ?? undefined}
             type="button"
@@ -134,7 +139,7 @@ function SuggestionCard({ suggestion, report, resume, decision, busy, applyError
           </Button>
           <Button
             className="h-11 flex-1 sm:flex-none"
-            disabled={busy}
+            disabled={busy || locked}
             onClick={() => onReject(suggestion)}
             type="button"
             variant="outline"
@@ -151,13 +156,20 @@ export function SuggestionsPanel({
   report,
   resume,
   jd,
+  tailoredCopy,
   onResumeChanged,
 }: {
   report: MatchReport;
+  /** The resume proposals are read from and applied to: the tailored copy once there is one. */
   resume: ResumeRecord | null;
   jd: JdRecord | null;
+  /** The copy of the report's resume tailored for its posting, once an accept has made it. */
+  tailoredCopy: ResumeRecord | null;
   onResumeChanged: () => void;
 }) {
+  const router = useRouter();
+  const [copying, setCopying] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -217,6 +229,30 @@ export function SuggestionsPanel({
     }
   }
 
+  async function tailorInEditor() {
+    if (resume === null) {
+      return;
+    }
+
+    setCopying(true);
+    setCopyError(null);
+
+    try {
+      const outcome = await ensureTailoredCopy({ resumeId: resume.id, jdId: report.jdId }, { storage: getStorage() });
+
+      if (!outcome.ok) {
+        setCopyError(outcome.message);
+        return;
+      }
+
+      router.push(`/resumes/${outcome.record.id}/edit`);
+    } catch {
+      setCopyError("This browser would not store the copy, so nothing was made.");
+    } finally {
+      setCopying(false);
+    }
+  }
+
   async function accept(suggestion: Suggestion) {
     if (resume === null) {
       return;
@@ -226,7 +262,7 @@ export function SuggestionsPanel({
     setApplyError(null);
 
     try {
-      const outcome = await acceptSuggestion({ resumeId: resume.id, suggestion }, { storage: getStorage() });
+      const outcome = await acceptSuggestion({ resumeId: resume.id, suggestion, jdId: report.jdId }, { storage: getStorage() });
 
       if (!outcome.applied) {
         setApplyError({ id: suggestion.id, message: outcome.message });
@@ -255,21 +291,64 @@ export function SuggestionsPanel({
       <h2 className="text-sm font-semibold">Suggested adjustments</h2>
       <p className="text-sm leading-relaxed text-muted-foreground">
         Proposals that would bring this resume closer to the posting. Each one rewrites text that is already in the
-        resume, and a second pass drops any proposal your own resume data does not support. Nothing is written to your
-        resume until you accept it.
+        resume, and a second pass drops any proposal your own resume data does not support. Nothing is written until you
+        accept it, and then only to a copy.
       </p>
 
       {resume === null || jd === null ? (
-        <p className="rounded-lg border border-dashed border-border p-3 text-sm leading-relaxed text-muted-foreground">
+        <p className="rounded-2xl border border-dashed border-foreground/15 bg-card p-3 text-sm leading-relaxed text-muted-foreground">
           The {resume === null ? "resume" : "job description"} this report was built from is no longer stored in this
           browser, so there is nothing to adjust.
         </p>
       ) : (
         <>
           {manual ? (
-            <p className="rounded-lg border border-border/60 bg-muted/40 p-3 text-sm leading-relaxed" role="status">
+            <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-sm leading-relaxed" role="status">
               {applyRefusalMessages["manual-mode"]}
             </p>
+          ) : null}
+
+          <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-sm leading-relaxed" role="status">
+            {tailoredCopy === null ? (
+              "Accepting a proposal makes a copy of this resume tailored for this job and changes the copy. Your original resume is never changed."
+            ) : (
+              <>
+                Accepted proposals go to your tailored copy, not the original.{" "}
+                <Link
+                  className="font-medium underline underline-offset-4"
+                  href={`/resumes/${tailoredCopy.id}/edit`}
+                >
+                  Open the tailored copy
+                </Link>
+                {" · "}
+                <Link
+                  className="font-medium underline underline-offset-4"
+                  href={`/match?jd=${encodeURIComponent(report.jdId)}&resume=${encodeURIComponent(tailoredCopy.id)}`}
+                >
+                  Score it against this job
+                </Link>
+                . This report still describes the version it was scored on.
+              </>
+            )}
+          </p>
+
+          {tailoredCopy === null && !manual ? (
+            <div className="flex flex-col gap-2">
+              <Button
+                className="h-11 w-full sm:w-auto sm:self-start"
+                disabled={copying}
+                onClick={() => void tailorInEditor()}
+                type="button"
+                variant="outline"
+              >
+                {copying ? "Making the copy…" : "Tailor a copy in the editor"}
+              </Button>
+              {copyError === null ? null : (
+                <p className="text-sm text-destructive" role="alert">
+                  {copyError}
+                </p>
+              )}
+            </div>
           ) : null}
 
           <div>
@@ -297,12 +376,12 @@ export function SuggestionsPanel({
 
           {generated ? (
             <p className="text-xs leading-relaxed text-muted-foreground">
-              {generatedUnder === null
+              {generatedUnder === null || !isDevelopment
                 ? null
                 : `Generated under AI mode ${generatedUnder.aiMode} (model ${generatedUnder.model}), ${generatedUnder.modelCalls} model ${
                     generatedUnder.modelCalls === 1 ? "request" : "requests"
                   }, counted locally in this browser. `}
-              Nothing has been written to your resume.
+              Nothing has been written yet.
             </p>
           ) : null}
         </>
@@ -322,7 +401,7 @@ export function SuggestionsPanel({
       ) : null}
 
       {generated && suggestions.length === 0 ? (
-        <p className="rounded-lg border border-border/60 p-3 text-sm leading-relaxed">
+        <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-sm leading-relaxed">
           {dropped.length === 0
             ? "The model proposed no adjustments for this report."
             : groundingDropped === dropped.length
@@ -337,6 +416,7 @@ export function SuggestionsPanel({
             <SuggestionCard
               applyError={applyError?.id === suggestion.id ? applyError.message : null}
               busy={busyId === suggestion.id}
+              locked={busyId !== null}
               decision={decisions[suggestion.id]?.decision}
               key={suggestion.id}
               onAccept={accept}
@@ -350,7 +430,7 @@ export function SuggestionsPanel({
       ) : null}
 
       {rejected.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+        <div className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
           <p className="text-sm">
             {rejected.length} {rejected.length === 1 ? "proposal was" : "proposals were"} rejected. Your resume is
             unchanged, and generating again will not apply {rejected.length === 1 ? "it" : "them"}.
@@ -363,7 +443,7 @@ export function SuggestionsPanel({
           {showRejected ? (
             <ul className="flex flex-col gap-2">
               {rejected.map((suggestion) => (
-                <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3" key={suggestion.id}>
+                <li className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3" key={suggestion.id}>
                   <p className="text-sm font-medium">{suggestion.requirement}</p>
                   <p className="text-xs leading-relaxed break-words text-muted-foreground">{suggestion.proposed}</p>
                   <div>
@@ -384,7 +464,7 @@ export function SuggestionsPanel({
       ) : null}
 
       {dropped.length > 0 ? (
-        <details className="rounded-lg border border-border/60 p-3">
+        <details className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
           <summary className="cursor-pointer text-sm font-medium">
             What the checks removed ({dropped.length})
           </summary>

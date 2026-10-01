@@ -117,7 +117,7 @@ function BulletList({
                   <>
                     <textarea
                       aria-label={lineLabel(index)}
-                      className="min-h-11 w-full min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2.5 text-sm"
+                      className="field-sizing-content min-h-11 w-full min-w-0 flex-1 rounded-xl border border-input bg-card shadow-[inset_0_1px_2px_oklch(0.2_0.03_265/0.05)] outline-none transition-[box-shadow,border-color,background-color] duration-200 hover:border-foreground/25 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 px-3 py-2.5 text-sm"
                       onChange={(event) => onChange(setBullet(values, index, event.target.value))}
                       placeholder={spec.placeholder}
                       value={value}

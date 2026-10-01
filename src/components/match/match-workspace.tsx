@@ -11,8 +11,11 @@ import { ResumePicker } from "@/components/jd/resume-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isDevelopment } from "@/lib/dev-only";
 import { toRequestFailure, type AiFailureError } from "@/lib/ai/failures";
 import { browserUsageStore, readModelRequests, recordModelRequest, type ModelRequestUsage } from "@/lib/ai/usage";
+import { deriveJdTitle } from "@/lib/jd/schema";
+import { baselinesFirst } from "@/lib/resume/tailor";
 import { isIntakeError, jdRecordFromIntake, type JdIntakeResponse, type JdIntakeSuccess } from "@/lib/jd/api";
 import { classifyHost, type JobHints } from "@/lib/jd/hosts";
 import { fetchModelIdentity, requestEvidence, type ModelIdentity } from "@/lib/match/api";
@@ -30,6 +33,8 @@ import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
  */
 
 const jdQueryKey = "jd";
+/** Preselects a resume, so a report can send the reader back to re-match a tailored copy. */
+const resumeQueryKey = "resume";
 
 /**
  * How the analyse flow ends when it does not produce a report. A transport
@@ -81,7 +86,7 @@ function DeleteJdConfirm({ title, busy, onCancel, onConfirm }: {
   onConfirm: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+    <div className="flex flex-col gap-3 rounded-xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-3">
       <p className="text-sm">
         Delete <span className="font-medium">{title}</span>? Its structured data and saved text are removed from this
         browser, and this cannot be undone.
@@ -98,11 +103,20 @@ function DeleteJdConfirm({ title, busy, onCancel, onConfirm }: {
   );
 }
 
+/**
+ * Developer diagnostics: which provider and model answer, and a local request tally.
+ * Visitors have no use for either, so it renders only under `next dev`. The guided
+ * tour skips a step whose target is absent, so hiding it leaves the tour intact.
+ */
 function QuotaPanel({ identity, usage, identityError }: {
   identity: ModelIdentity | null;
   usage: ModelRequestUsage | null;
   identityError: string | null;
 }) {
+  if (!isDevelopment) {
+    return null;
+  }
+
   const modeLine = identity === null
     ? identityError ?? "Reading the AI mode…"
     : identity.aiMode === "mock"
@@ -110,7 +124,11 @@ function QuotaPanel({ identity, usage, identityError }: {
       : `AI mode: live — model calls go to ${identity.provider} (model: ${identity.model}).`;
 
   return (
-    <section className="flex flex-col gap-1 rounded-lg border border-border/60 p-4" aria-label="AI mode and requests">
+    <section
+      aria-label="AI mode and requests"
+      className="flex flex-col gap-1 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4"
+      data-tour="match-ai"
+    >
       <p className="text-sm">{modeLine}</p>
       <p className="text-xs leading-relaxed text-muted-foreground">
         {usage === null
@@ -168,7 +186,16 @@ export function MatchWorkspace() {
 
       setUsage(initialUsage);
       setResumes(loadedResumes);
-      setSelectedResumeId((current) => current ?? loadedResumes[0]?.id ?? null);
+      // The newest baseline, not the newest record: a tailored copy is updated more
+      // recently than the resume it came from, and a match starts from the original.
+      const requested = new URLSearchParams(window.location.search).get(resumeQueryKey);
+      setSelectedResumeId(
+        (current) =>
+          current ??
+          loadedResumes.find((record) => record.id === requested)?.id ??
+          baselinesFirst(loadedResumes)[0]?.id ??
+          null,
+      );
       applyJds(loadedJds, jdQueryId());
     })().catch(() => {
       if (!cancelled) {
@@ -328,9 +355,10 @@ export function MatchWorkspace() {
     <div className="flex flex-col gap-6">
       <QuotaPanel identity={identity} identityError={identityError} usage={usage} />
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="match-resume">
         <h2 className="text-sm font-semibold">1. Your resume</h2>
         <ResumePicker
+          jdTitles={new Map((jds ?? []).map((record) => [record.id, deriveJdTitle(record.structured, record.title)]))}
           loading={loading}
           onSelect={setSelectedResumeId}
           resumes={resumes ?? []}
@@ -357,7 +385,7 @@ export function MatchWorkspace() {
       </section>
 
       {intakeError ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4" role="alert">
+        <div className="flex flex-col gap-3 rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4" role="alert">
           <p className="text-sm">{intakeError.message}</p>
           <p className="text-xs text-muted-foreground">Reason: {intakeError.reason}</p>
           <Button className="h-11 w-full sm:w-auto" onClick={() => setMode("paste")} size="lg" variant="outline">
@@ -366,13 +394,13 @@ export function MatchWorkspace() {
         </div>
       ) : null}
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3" data-tour="match-posting">
         <h2 className="text-sm font-semibold">3. The posting to match against</h2>
 
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading stored postings…</p>
         ) : jds.length === 0 ? (
-          <p className="rounded-lg border border-border/60 px-4 py-6 text-sm text-muted-foreground">
+          <p className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) px-4 py-6 text-sm text-muted-foreground">
             Nothing read yet. Paste a posting or add its link above; it will be stored in this browser and shown here
             again after a reload.
           </p>
@@ -446,7 +474,7 @@ export function MatchWorkspace() {
         )}
       </section>
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3" data-tour="match-run">
         <h2 className="text-sm font-semibold">4. Match</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
           The model answers one question per requirement — met, partly met or missing, with the resume text behind it.
@@ -468,7 +496,7 @@ export function MatchWorkspace() {
           <p className="text-sm text-muted-foreground">Pick a resume to analyse against.</p>
         ) : null}
         {analyzeError === null ? null : analyzeError.kind === "unanalysable" ? (
-          <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm" role="alert">
+          <p className="rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4 text-sm" role="alert">
             {analyzeError.message}
           </p>
         ) : (

@@ -39,12 +39,12 @@ export function StoragePanel({
   const percent = estimate.supported && estimate.quotaBytes ? (estimate.usageBytes / estimate.quotaBytes) * 100 : null;
 
   return (
-    <section aria-labelledby="storage-heading" className="flex flex-col gap-4">
+    <section aria-labelledby="storage-heading" className="flex flex-col gap-4" data-tour="settings-storage">
       <h2 className="text-lg font-semibold tracking-tight" id="storage-heading">
         Storage on this device
       </h2>
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-4">
+      <div className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium">Your data</h3>
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -56,8 +56,8 @@ export function StoragePanel({
 
         {breakdown.totalRecords === 0 ? (
           <p className="text-sm text-muted-foreground" role="status">
-            Nothing is stored: no resumes, job descriptions or match reports. A new resume, posting or analysis adds to
-            the figures below.
+            Nothing is stored: no resumes, job descriptions, match reports or documents. A new resume, posting or
+            analysis adds to the figures below.
           </p>
         ) : null}
 
@@ -65,6 +65,7 @@ export function StoragePanel({
           <StoreRow label="Resumes" size={breakdown.resumes} />
           <StoreRow label="Job descriptions" size={breakdown.jds} />
           <StoreRow label="Match reports" size={breakdown.reports} />
+          <StoreRow label="Letters and prep" size={breakdown.documents} />
           <div className="flex items-baseline justify-between gap-4 border-t border-border py-2">
             <span className="text-sm font-medium">
               Total<span className="text-muted-foreground"> ({breakdown.totalRecords})</span>
@@ -76,7 +77,7 @@ export function StoragePanel({
 
       <EngineCacheCard onCleared={onChanged} />
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-4">
+      <div className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4">
         <h3 className="text-sm font-medium">Browser-reported usage for this origin</h3>
         {!estimate.supported ? (
           <p className="text-xs leading-relaxed text-muted-foreground">

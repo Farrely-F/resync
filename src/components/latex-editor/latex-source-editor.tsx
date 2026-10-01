@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import { basicSetup } from "codemirror";
 import { StreamLanguage } from "@codemirror/language";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
@@ -29,7 +29,7 @@ import { EditorView } from "@codemirror/view";
  * (a regenerated document, a theme change) is not added to the undo history, and
  * a `revision` bump throws the history away with the document it belonged to.
  */
-export function LatexSourceEditor({
+function LatexSourceEditorSurface({
   label,
   onChange,
   revision,
@@ -117,7 +117,7 @@ export function LatexSourceEditor({
 
   return (
     <div
-      className="h-80 min-w-0 overflow-hidden rounded-lg border border-border/60 bg-muted/40 text-[16px] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:h-[28rem] sm:text-xs"
+      className="h-80 min-w-0 overflow-hidden rounded-xl bg-background ring-1 ring-foreground/[0.08] text-[16px] focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 sm:h-[28rem] sm:text-xs"
       ref={host}
     />
   );
@@ -155,3 +155,11 @@ const editorTheme = EditorView.theme({
   // that the width is worth more.
   ".cm-foldGutter": { display: "none" },
 });
+
+/**
+ * Memoised: the document it shows is deferred by the parent, so while the reader
+ * is typing in a field this editor's props do not change and it does not re-render.
+ * Re-rendering it means reconciling a CodeMirror view, which is the single most
+ * expensive thing on the page.
+ */
+export const LatexSourceEditor = memo(LatexSourceEditorSurface);

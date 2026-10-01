@@ -31,6 +31,7 @@ export function CollapsibleSection({
   onOpenChange,
   sortable,
   headingLevel = 3,
+  tourId,
   className,
 }: {
   title: ReactNode;
@@ -47,6 +48,8 @@ export function CollapsibleSection({
   sortable?: { id: string; handleLabel: string };
   /** 2 for a box that stands on its own, 3 for one nested under a section heading. */
   headingLevel?: 2 | 3;
+  /** The `data-tour` id a guided tour step points at this box with. */
+  tourId?: string;
   className?: string;
 }) {
   const id = useId();
@@ -82,7 +85,7 @@ export function CollapsibleSection({
     </Collapsible>
   );
 
-  const box = cn("rounded-lg border border-border/60", className);
+  const box = cn("rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest)", className);
 
   if (sortable !== undefined) {
     return (
@@ -92,6 +95,7 @@ export function CollapsibleSection({
         handleLabel={sortable.handleLabel}
         id={sortable.id}
         labelledBy={headingId}
+        tourId={tourId}
       >
         {content}
       </SortableItem>
@@ -99,7 +103,7 @@ export function CollapsibleSection({
   }
 
   return (
-    <section aria-labelledby={headingId} className={box}>
+    <section aria-labelledby={headingId} className={box} data-tour={tourId}>
       {content(null)}
     </section>
   );

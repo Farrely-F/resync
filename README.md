@@ -34,7 +34,7 @@ Every structured model call goes through one seam (`src/lib/ai/run.ts`), which i
 calling feature provides under `AI_MODE=mock` or sent to OpenRouter under `AI_MODE=live`. Tests and local
 development never need network access or an API key.
 
-**Provider**: `AI_PROVIDER` selects `openrouter` or `groq` and `MODEL_ID` selects the model, so no variable is
+**Provider**: `AI_PROVIDER` selects `openrouter`, `groq` or `fireworks` and `MODEL_ID` selects the model, so no variable is
 shaped like one vendor. With only one provider's key present that provider is used; with both, the other one is
 appended to the fallback chain automatically, which is the point of having two — when one vendor's free allowance is
 spent, the next attempt goes to a different vendor. Model ids stay vendor-shaped in `MODEL_ID`; which vendor receives
@@ -104,6 +104,19 @@ can be matched to the line that explains it:
 npm run dev | jq -c 'select(.level == "error" or .event == "route.parse-resume.failed")'
 ```
 
+## Guided tours
+
+Each page explains itself once, the first time it is opened. A tour is data, not code: `src/lib/tour/steps.ts` lists
+steps that point at elements by a `data-tour` id, so the copy is reviewable on its own and the overlay knows nothing
+about any particular page. A step whose element is not on the page is dropped rather than pointed at empty space, which
+is what lets one tour cover a page that has several states.
+
+The overlay is a modal dialog with a focus trap, arrow keys, and Escape; on a phone it is a sheet at the bottom with the
+target scrolled above it, because a popover beside a small target would cover the thing it is describing. Finishing and
+skipping both record the tour as seen (`localStorage`, `resync.tour-progress.v1` — versioned, and an unreadable value
+counts as unseen, because a tour appearing twice is a smaller cost than one that never appears). Leaving a page
+mid-tour does not record it, so it can be offered again. Settings lists every tour with "Show them again" to reset them.
+
 ## Architecture notes
 
 - **Two schemas per AI task, and the reason is strict structured output.** Groq and OpenAI reject any schema whose
@@ -124,6 +137,10 @@ npm run dev | jq -c 'select(.level == "error" or .event == "route.parse-resume.f
   into the percentage from weights that live in one place, so the same evidence always gives the same number and the
   report can show the arithmetic. ATS format checks are derived from the generated document and the resume structure,
   not from the model.
+- **The seam's deadline is shared between the models that could still answer.** One stalled provider used to spend the
+  whole budget, so the call timed out and the fallback was never called — the exact failure a fallback list exists for.
+  Each attempt now gets its share of what remains, and a timeout ends that attempt rather than the call; the last target
+  left gets whatever is over. Documents ask for 60 s rather than the default 30, because their answers are long.
 - **Report cache and quota**: a report is identified by the hash of its inputs (resume, posting, theme, rubric
   version, model, AI mode). Re-analysing an identical pair returns the stored report and makes no model request. The
   quota line on `/match` is a count of model requests this browser started today, kept in `localStorage`; it is not a
@@ -147,6 +164,28 @@ npm run dev | jq -c 'select(.level == "error" or .event == "route.parse-resume.f
 - **Collapsed sections in the editor are a reading aid, so that state is never stored**: opening a resume never hides
   a section the reader closed last time. Hiding a section is a different action, and it is the one that takes the
   section out of the generated document while keeping its entries.
+- **Documents written from a match are one pipeline with three specs.** A cover letter, an outreach message and
+  interview prep are the same shape of work — the resume, the posting and the report's verdicts in, text out — so they
+  share one route (`POST /api/documents`), one client hook and one spec per kind (`src/lib/documents/*.ts`) holding the
+  instructions, the strict schema, the prompt and the recorded fixture. Adding a kind is a spec plus a line in the
+  registry. The report is the input on purpose: a letter written from the posting repeats the posting, and one written
+  from the report can answer the gaps the analysis found. Answers are stored in this browser (the `documents` store) and
+  are deleted with the report they answer, which the confirmation says.
+- **`/guide` teaches the flow by doing it.** Each step is a real action — the sample resume goes through the same parse
+  path as an upload, the sample posting is copied to the clipboard — and a step is done when the underlying fact is true
+  (a resume exists) rather than when a box is ticked. Steps the page cannot check say so, and the marks it does keep are
+  in `localStorage`, versioned, with an unreadable value counting as nothing done.
+- **The editor has two surfaces, one at a time.** The fields and the LaTeX are two views of one document; mounting both
+  meant every keystroke re-rendered both, including a CodeMirror view nobody was looking at. They are tabs now, opening
+  on whichever holds the document. The fields stay editable in manual mode: a field edit regenerates the document from
+  the data, which replaces the hand-written LaTeX, so it asks first and names the cost. That is the honest half of
+  two-way sync — fields to document is exact, document to fields is not, because hand-written LaTeX can say things the
+  data model cannot hold.
+- **The source check masks verbatim arguments before parsing.** `\url` sets its own catcodes, so a `%` inside it is a
+  literal percent sign; the parser used here reads it as a comment, swallows the argument's closing brace and reports an
+  unclosed brace. That is not hypothetical: `latexUrl` percent-encodes for `\url`, so any resume whose link contains a
+  quote, a space or a literal percent was refused a preview for a document that compiles. The bodies are masked with
+  filler of exactly the same length, so every other problem keeps its line and column.
 - **Live preview compiles the document of record in the browser**, on a pause after typing rather than per keystroke,
   and only when the engine has already been consented to and cached — a field change can never start a 127 MB download
   or raise a consent prompt. There is one compile state behind the preview and the download, so the two cannot

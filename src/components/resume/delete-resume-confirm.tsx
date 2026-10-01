@@ -21,11 +21,14 @@ import {
  */
 export function DeleteResumeConfirm({
   title,
+  copies = 0,
   busy,
   onCancel,
   onConfirm,
 }: {
   title: string;
+  /** Tailored copies made from this resume: they are kept, and the dialog says so. */
+  copies?: number;
   busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -44,7 +47,13 @@ export function DeleteResumeConfirm({
           <AlertDialogTitle>Delete this resume?</AlertDialogTitle>
           <AlertDialogDescription>
             <span className="font-medium text-foreground">{title}</span> and its parsed data and saved text are
-            removed from this browser. This cannot be undone.
+            removed from this browser.{" "}
+            {copies > 0
+              ? `Its ${copies === 1 ? "tailored copy is" : `${copies} tailored copies are`} kept as ${
+                  copies === 1 ? "a separate resume" : "separate resumes"
+                }. `
+              : null}
+            This cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

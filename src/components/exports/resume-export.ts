@@ -1,3 +1,4 @@
+import { resolveLayout, type PageLayout } from "@/lib/layout";
 import { sectionLabels } from "@/lib/resume/library";
 import { deriveResumeTitle, withSections, type Resume, type SectionId } from "@/lib/resume/schema";
 import type { ResumeMode, ResumeRecord } from "@/lib/storage/types";
@@ -36,6 +37,10 @@ export interface ResumeExport {
   id: string;
   title: string;
   themeId: string;
+  layout: PageLayout;
+  /** For a tailored copy: the resume it was copied from and the posting it was made for. Null on a baseline. */
+  derivedFromId: string | null;
+  forJdId: string | null;
   mode: ResumeMode;
   /** Hand-edited LaTeX, when the resume was in manual mode. */
   manualTex: string | null;
@@ -55,6 +60,9 @@ export function resumeExport(record: ResumeRecord, exportedAt: string): ResumeEx
     id: record.id,
     title: deriveResumeTitle(record.resume),
     themeId: record.themeId,
+    layout: resolveLayout(record.layout),
+    derivedFromId: record.derivedFromId ?? null,
+    forJdId: record.forJdId ?? null,
     mode: record.mode,
     manualTex: record.manualTex,
     sourceText: record.plainText,

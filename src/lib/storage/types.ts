@@ -1,5 +1,7 @@
+import type { DocumentRecord } from "@/lib/documents/types";
 import type { Jd } from "@/lib/jd/schema";
 import type { MatchReport } from "@/lib/match/types";
+import type { PageLayout } from "@/lib/layout";
 import type { Resume } from "@/lib/resume/schema";
 
 /**
@@ -19,6 +21,12 @@ export interface ResumeRecord {
   /** Text extracted from the original document; the source for re-parsing. */
   plainText: string;
   themeId: string;
+  /** Paper and margin. Absent on records saved before layouts existed: read it with `resolveLayout`. */
+  layout?: PageLayout;
+  /** Set on a copy tailored for one posting: the baseline resume it was copied from. */
+  derivedFromId?: string;
+  /** Set with `derivedFromId`: the job description this copy was tailored for. */
+  forJdId?: string;
   /** `manual` means the user edited the generated LaTeX; it must not be rewritten from data. */
   mode: ResumeMode;
   /** Hand-edited LaTeX. Only meaningful when `mode` is `manual`. */
@@ -63,6 +71,14 @@ export interface StorageApi {
   deleteReport(id: string): Promise<void>;
   /** Most recent report for an input identity, which is how repeat analyses avoid a model call. */
   findReportByInputHash(inputHash: string): Promise<MatchReport | null>;
+
+  /** Letters, messages and interview prep written from a report, newest first. */
+  listDocuments(): Promise<DocumentRecord[]>;
+  getDocument(id: string): Promise<DocumentRecord | null>;
+  putDocument(record: DocumentRecord): Promise<void>;
+  deleteDocument(id: string): Promise<void>;
+  /** Deleting a report takes the documents written from it: they cannot outlive it. */
+  deleteDocumentsForReport(reportId: string): Promise<void>;
 
   estimate(): Promise<StorageEstimate>;
   clearUserData(): Promise<void>;

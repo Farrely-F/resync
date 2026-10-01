@@ -5,9 +5,11 @@ import { CircleAlert, LoaderCircle } from "lucide-react";
 
 import { accountStorage } from "@/components/exports/accounting";
 import { DangerZone } from "@/components/exports/danger-zone";
+import { ToursCard } from "@/components/tour/tours-card";
 import { ExportsPanel } from "@/components/exports/exports-panel";
 import { StoragePanel } from "@/components/exports/storage-panel";
 import { getStorage } from "@/lib/storage";
+import type { DocumentRecord } from "@/lib/documents/types";
 import type { MatchReport } from "@/lib/match/types";
 import type { JdRecord, ResumeRecord, StorageEstimate } from "@/lib/storage/types";
 
@@ -24,6 +26,7 @@ interface Stored {
   resumes: ResumeRecord[];
   jds: JdRecord[];
   reports: MatchReport[];
+  documents: DocumentRecord[];
   estimate: StorageEstimate;
 }
 
@@ -37,14 +40,15 @@ export function SettingsWorkspace() {
 
   const read = useCallback(async () => {
     const storage = getStorage();
-    const [resumes, jds, reports, estimate] = await Promise.all([
+    const [resumes, jds, reports, documents, estimate] = await Promise.all([
       storage.listResumes(),
       storage.listJds(),
       storage.listReports(),
+      storage.listDocuments(),
       storage.estimate(),
     ]);
 
-    return { resumes, jds, reports, estimate };
+    return { resumes, jds, reports, documents, estimate };
   }, []);
 
   const refresh = useCallback(async () => {
@@ -111,11 +115,13 @@ export function SettingsWorkspace() {
       <StoragePanel breakdown={accountStorage(stored)} estimate={stored.estimate} onChanged={() => void refresh()} />
       <DangerZone
         breakdown={accountStorage(stored)}
+        documents={stored.documents}
         jds={stored.jds}
         onChanged={refresh}
         reports={stored.reports}
         resumes={stored.resumes}
       />
+      <ToursCard />
     </div>
   );
 }

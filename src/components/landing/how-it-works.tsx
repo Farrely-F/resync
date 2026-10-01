@@ -98,20 +98,17 @@ export function HowItWorks() {
   }, [enhanced]);
 
   return (
-    <section className="scroll-mt-20 border-t border-border/60 pt-12" id="how">
-      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">How it works</p>
-      <h2 className="mt-3 max-w-xl text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-        Four steps, in order, with nothing hidden in between.
-      </h2>
+    <section className="scroll-mt-24" id="how">
+      <h2 className="title reveal max-w-2xl">Four steps, in order, with nothing hidden in between.</h2>
 
-      <div className="mt-10 grid gap-10 md:grid-cols-2 md:gap-12">
+      <div className="mt-14 grid gap-10 md:grid-cols-2 md:gap-16">
         <ol className="flex flex-col gap-12 md:gap-0">
           {steps.map((step, index) => (
             <li
               className={cn(
                 "md:flex md:min-h-[62vh] md:flex-col md:justify-center",
-                enhanced && "md:transition-opacity md:duration-500 motion-reduce:md:transition-none",
-                enhanced && active !== index && "md:opacity-50",
+                enhanced && "md:transition-[opacity,filter] md:duration-700 motion-reduce:md:transition-none",
+                enhanced && active !== index && "md:opacity-35 md:blur-[1px]",
               )}
               data-step={index}
               key={step.id}
@@ -119,11 +116,16 @@ export function HowItWorks() {
                 stepRefs.current[index] = element;
               }}
             >
-              <p className="font-mono text-xs text-muted-foreground">
-                Step {index + 1} of {steps.length}
-              </p>
-              <h3 className="mt-2 text-lg font-medium tracking-tight">{step.label}</h3>
-              <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+              <span
+                className={cn(
+                  "tabular grid size-9 place-items-center rounded-full bg-card text-sm font-semibold text-muted-foreground ring-1 ring-foreground/10 transition-[background-color,color,transform,box-shadow] duration-500 ease-(--ease-spring)",
+                  enhanced && active === index && "scale-110 bg-primary text-primary-foreground shadow-(--shadow-lift) ring-0",
+                )}
+              >
+                {index + 1}
+              </span>
+              <h3 className="mt-4 text-2xl font-semibold tracking-tight md:text-3xl">{step.label}</h3>
+              <p className="mt-3 max-w-md leading-relaxed text-muted-foreground">{step.body}</p>
               <div className="mt-4 md:hidden">
                 <step.Preview />
               </div>
@@ -131,7 +133,7 @@ export function HowItWorks() {
           ))}
         </ol>
 
-        <div className={cn("hidden md:block", enhanced && "md:sticky md:top-20 md:self-start")}>
+        <div className={cn("hidden md:block", enhanced && "md:sticky md:top-28 md:self-start")}>
           {enhanced ? (
             <>
               <div className="grid">
@@ -139,8 +141,8 @@ export function HowItWorks() {
                   <div
                     aria-hidden={active !== index}
                     className={cn(
-                      "col-start-1 row-start-1 transition-opacity duration-500 motion-reduce:transition-none",
-                      active === index ? "opacity-100" : "pointer-events-none opacity-0",
+                      "col-start-1 row-start-1 transition-[opacity,transform,filter] duration-700 ease-(--ease-out-expo) motion-reduce:transition-none",
+                      active === index ? "opacity-100" : "pointer-events-none translate-y-4 scale-[0.97] opacity-0 blur-sm",
                     )}
                     key={step.id}
                   >

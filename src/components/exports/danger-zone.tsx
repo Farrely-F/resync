@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { engineAssetTotalBytes, formatBytes } from "@/lib/compile/assets";
 import { deriveResumeTitle } from "@/lib/resume/schema";
 import { getStorage } from "@/lib/storage";
+import type { DocumentRecord } from "@/lib/documents/types";
 import type { MatchReport } from "@/lib/match/types";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
 
@@ -49,7 +50,12 @@ type RecordKindTarget = { kind: "resume" | "jd" | "report"; id: string };
 const deleteActions = {
   resume: (id: string) => getStorage().deleteResume(id),
   jd: (id: string) => getStorage().deleteJd(id),
-  report: (id: string) => getStorage().deleteReport(id),
+  // A document written from a report cannot outlive it: it answers a report that
+  // would no longer exist, and the prompt says so.
+  report: async (id: string) => {
+    await getStorage().deleteDocumentsForReport(id);
+    await getStorage().deleteReport(id);
+  },
 };
 
 function RecordItem({
@@ -74,7 +80,7 @@ function RecordItem({
   onConfirm: () => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+    <li className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col">
           <span className="text-sm font-medium break-words">{label}</span>
@@ -189,12 +195,14 @@ export function DangerZone({
   resumes,
   jds,
   reports,
+  documents,
   breakdown,
   onChanged,
 }: {
   resumes: ResumeRecord[];
   jds: JdRecord[];
   reports: MatchReport[];
+  documents: DocumentRecord[];
   breakdown: StorageBreakdown;
   onChanged: () => Promise<void>;
 }) {
@@ -243,7 +251,7 @@ export function DangerZone({
   const emptyReports = reports.length === 0;
 
   return (
-    <section aria-labelledby="danger-heading" className="flex flex-col gap-4">
+    <section aria-labelledby="danger-heading" className="flex flex-col gap-4" data-tour="settings-danger">
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold tracking-tight" id="danger-heading">
           Delete
@@ -281,6 +289,7 @@ export function DangerZone({
                   message={describeDeletion("resume", deriveResumeTitle(record.resume), {
                     bytes: jsonBytes(record),
                     dependentReports: dependents,
+                    dependentDocuments: 0,
                   })}
                   meta={`${formatBytes(jsonBytes(record))} · ${record.mode === "manual" ? "hand-edited LaTeX" : "generated LaTeX"} · updated ${record.updatedAt.slice(0, 10)}`}
                   onCancel={() => edit({ type: "cancel" })}
@@ -313,7 +322,11 @@ export function DangerZone({
                   confirming={isConfirming(confirmation, target)}
                   key={record.id}
                   label={title}
-                  message={describeDeletion("jd", title, { bytes: jsonBytes(record), dependentReports: dependents })}
+                  message={describeDeletion("jd", title, {
+                    bytes: jsonBytes(record),
+                    dependentReports: dependents,
+                    dependentDocuments: 0,
+                  })}
                   meta={`${record.company ?? "No company"} · ${formatBytes(jsonBytes(record))} · updated ${record.updatedAt.slice(0, 10)}`}
                   onCancel={() => edit({ type: "cancel" })}
                   onConfirm={() => edit({ type: "confirm" })}
@@ -345,7 +358,11 @@ export function DangerZone({
                   confirming={isConfirming(confirmation, target)}
                   key={report.id}
                   label={label}
-                  message={describeDeletion("report", label, { bytes: jsonBytes(report), dependentReports: 0 })}
+                  message={describeDeletion("report", label, {
+                    bytes: jsonBytes(report),
+                    dependentReports: 0,
+                    dependentDocuments: documents.filter((document) => document.reportId === report.id).length,
+                  })}
                   meta={`${pair} · score ${report.score} · ${formatBytes(jsonBytes(report))} · ${report.createdAt.slice(0, 10)}`}
                   onCancel={() => edit({ type: "cancel" })}
                   onConfirm={() => edit({ type: "confirm" })}
@@ -357,7 +374,7 @@ export function DangerZone({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-destructive/40 p-4">
+      <div className="flex flex-col gap-3 rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-medium">Clear all user data</h3>
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -373,6 +390,7 @@ export function DangerZone({
               resumes: breakdown.resumes.count,
               jds: breakdown.jds.count,
               reports: breakdown.reports.count,
+              documents: breakdown.documents.count,
               bytes: breakdown.totalBytes,
               engineCacheBytes: engineAssetTotalBytes,
             }}
