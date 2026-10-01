@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { ClaimExperience } from "@/components/suggestions/claim-experience";
+import { AdjustmentsList } from "@/components/suggestions/adjustments-list";
 import { Button } from "@/components/ui/button";
 import { AiFailureNotice } from "@/components/ai/failure-notice";
 import { isDevelopment } from "@/lib/dev-only";
@@ -331,6 +333,21 @@ export function SuggestionsPanel({
               </>
             )}
           </p>
+
+          <ClaimExperience
+            criteria={report.criteria}
+            jdId={report.jdId}
+            manual={manual}
+            onAdded={onResumeChanged}
+            resume={resume}
+          />
+
+          {tailoredCopy?.adjustments?.length ? (
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold">Recent adjustments</h3>
+              <AdjustmentsList adjustments={tailoredCopy.adjustments} limit={5} />
+            </div>
+          ) : null}
 
           {tailoredCopy === null && !manual ? (
             <div className="flex flex-col gap-2">

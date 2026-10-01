@@ -3,6 +3,7 @@
 import { useId, type ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
+import { AdjustedTag, adjustedControlClassName, useAdjustedSource } from "@/components/editor/adjustment-highlight";
 import { IconButton, TextField } from "@/components/editor/fields";
 import {
   readList,
@@ -14,6 +15,7 @@ import {
 import { addBullet, moveBullet, removeBullet, setBullet } from "@/components/editor/resume-ops";
 import { SortableItem, SortableList } from "@/components/editor/sortable";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * One entry of one section: its fields, and its bullet list where the schema has
@@ -115,10 +117,9 @@ function BulletList({
               >
                 {(handle) => (
                   <>
-                    <textarea
-                      aria-label={lineLabel(index)}
-                      className="field-sizing-content min-h-11 w-full min-w-0 flex-1 rounded-xl border border-input bg-card shadow-[inset_0_1px_2px_oklch(0.2_0.03_265/0.05)] outline-none transition-[box-shadow,border-color,background-color] duration-200 hover:border-foreground/25 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 px-3 py-2.5 text-sm"
-                      onChange={(event) => onChange(setBullet(values, index, event.target.value))}
+                    <BulletInput
+                      label={lineLabel(index)}
+                      onChange={(text) => onChange(setBullet(values, index, text))}
                       placeholder={spec.placeholder}
                       value={value}
                     />
@@ -153,6 +154,37 @@ function BulletList({
           {spec.addLabel}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function BulletInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const source = useAdjustedSource(value);
+  const adjusted = source !== null;
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      {adjusted ? <AdjustedTag className="self-start" source={source} /> : null}
+      <textarea
+        aria-label={label}
+        className={cn(
+          "field-sizing-content min-h-11 w-full min-w-0 flex-1 rounded-xl border border-input bg-card shadow-[inset_0_1px_2px_oklch(0.2_0.03_265/0.05)] outline-none transition-[box-shadow,border-color,background-color] duration-200 hover:border-foreground/25 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 px-3 py-2.5 text-sm",
+          adjusted && adjustedControlClassName,
+        )}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        value={value}
+      />
     </div>
   );
 }

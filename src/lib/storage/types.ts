@@ -14,6 +14,21 @@ import type { Resume } from "@/lib/resume/schema";
 
 export type ResumeMode = "structured" | "manual";
 
+/** One accepted suggestion, kept on the tailored copy it was written to so the change can be shown later. */
+export interface ResumeAdjustment {
+  /** The suggestion's id; accepting the same one again replaces its entry. */
+  id: string;
+  /** Where it landed when accepted, e.g. `work.0.highlights.1`. Positions can move; `after` is what finds it again. */
+  targetId: string;
+  /** The posting requirement it was written to answer. */
+  requirement: string;
+  before: string;
+  after: string;
+  at: string;
+  /** Who wrote `after`: a model's proposal the reader accepted, or the reader's own statement. Absent means a proposal. */
+  source?: "suggestion" | "you";
+}
+
 export interface ResumeRecord {
   id: string;
   title: string;
@@ -27,6 +42,8 @@ export interface ResumeRecord {
   derivedFromId?: string;
   /** Set with `derivedFromId`: the job description this copy was tailored for. */
   forJdId?: string;
+  /** Set on a tailored copy once a suggestion has been accepted into it, oldest first. */
+  adjustments?: ResumeAdjustment[];
   /** `manual` means the user edited the generated LaTeX; it must not be rewritten from data. */
   mode: ResumeMode;
   /** Hand-edited LaTeX. Only meaningful when `mode` is `manual`. */

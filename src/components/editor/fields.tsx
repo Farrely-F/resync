@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { AdjustedTag, adjustedControlClassName, useAdjustedSource } from "@/components/editor/adjustment-highlight";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,9 +36,12 @@ export function TextField({
   /** Multiline fields span both columns of the desktop grid. */
   wide?: boolean;
 }) {
+  const source = useAdjustedSource(value);
+  const adjusted = source !== null;
   const controlClassName = cn(
     "w-full min-w-0 rounded-xl border border-input bg-card shadow-[inset_0_1px_2px_oklch(0.2_0.03_265/0.05)] outline-none transition-[box-shadow,border-color,background-color] duration-200 hover:border-foreground/25 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 px-3 text-sm",
     multiline ? "min-h-24 py-2.5" : "h-11",
+    adjusted && adjustedControlClassName,
   );
   const shared = {
     className: controlClassName,
@@ -49,8 +53,9 @@ export function TextField({
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-1", wide && "sm:col-span-2")}>
-      <label className="text-xs font-medium" htmlFor={id}>
+      <label className="flex flex-wrap items-center gap-2 text-xs font-medium" htmlFor={id}>
         {label}
+        {adjusted ? <AdjustedTag source={source} /> : null}
       </label>
       {multiline ? (
         <textarea {...shared} />

@@ -17,8 +17,8 @@
  * engine through a worker shim (see `worker-shim.ts`).
  *
  * Sizes are the exact byte counts of the pinned release. The fetch script
- * asserts them at download time; `downloadEngineAssets` asserts them again on
- * the way into Cache Storage, so a truncated or substituted file fails loudly
+ * asserts them at download time; `downloadEngineAssets` asserts them again, plus a
+ * SHA-256, on the way into Cache Storage, so a truncated or substituted file fails loudly
  * instead of producing an engine that half-works.
  */
 
@@ -37,21 +37,23 @@ export interface EngineAsset {
   name: string;
   bytes: number;
   kind: EngineAssetKind;
+  /** Hex SHA-256 of the pinned release file. */
+  sha256: string;
 }
 
 /** The subset `scripts/fetch-tex-assets.mjs` downloads, with its verified sizes. */
 export const engineAssets: readonly EngineAsset[] = [
-  { name: "busytex.wasm", bytes: 32_507_525, kind: "engine" },
-  { name: "busytex.js", bytes: 271_047, kind: "engine" },
-  { name: "busytex_worker.js", bytes: 3_123, kind: "engine" },
-  { name: "busytex_pipeline.js", bytes: 36_266, kind: "engine" },
-  { name: "busytex_biber.js", bytes: 3_688, kind: "engine" },
-  { name: "texlive-basic.data", bytes: 92_785_062, kind: "data" },
-  { name: "texlive-basic.js", bytes: 2_091_651, kind: "data" },
-  { name: "texmf.cnf", bytes: 43_630, kind: "support" },
-  { name: "dvipdfmx.cfg", bytes: 8_828, kind: "support" },
-  { name: "updmap.cfg", bytes: 3_887, kind: "support" },
-  { name: "versions.txt", bytes: 438, kind: "support" },
+  { name: "busytex.wasm", bytes: 32_507_525, kind: "engine", sha256: "8d1988fc58cd1611c3cbd6bd986c3e607e5ff44f1d94252207ff7aae4cee72e0" },
+  { name: "busytex.js", bytes: 271_047, kind: "engine", sha256: "875b87795162cb26b15bd93cffa2e8739bcb900d623ab904029b39402508a1a4" },
+  { name: "busytex_worker.js", bytes: 3_123, kind: "engine", sha256: "80eca56a2eb015bdfbebff26e539dd793407b73b6c1cd351170e6fdb6e17c39a" },
+  { name: "busytex_pipeline.js", bytes: 36_266, kind: "engine", sha256: "4855e8fec24e8df952e1080d902791752bcdf283f4fae15811c371dd3ba3389e" },
+  { name: "busytex_biber.js", bytes: 3_688, kind: "engine", sha256: "e1a3ff55a120e392d3a7ef27f1bff1978c7a9d5978999296e39e1cfeac01d923" },
+  { name: "texlive-basic.data", bytes: 92_785_062, kind: "data", sha256: "ccb35d98d77cbaf988e1481f8538709f72166196785cf6b8785eabe6c8fb2993" },
+  { name: "texlive-basic.js", bytes: 2_091_651, kind: "data", sha256: "d4abc2e93a1ae33099107c6ad8a61813978cd44036a95697db2f2365a393c283" },
+  { name: "texmf.cnf", bytes: 43_630, kind: "support", sha256: "a2e9447fc8b6dfa407fa8d0d710e59b039e22598e3f17de0bdf54daba478742c" },
+  { name: "dvipdfmx.cfg", bytes: 8_828, kind: "support", sha256: "01df8f6acdd516763b32f8621aa2d638ad756cc864b89f2081cad3d8ccbb5532" },
+  { name: "updmap.cfg", bytes: 3_887, kind: "support", sha256: "c5a3bc4582a863d5e139fea59c70604ced0cdcb9096158bf5e15f88f4de47f38" },
+  { name: "versions.txt", bytes: 438, kind: "support", sha256: "6c7fc394e74e3cc9182c8f689dcb976970fcf9ad594b1749c61e085cf38bedc5" },
 ];
 
 /** Total download cost of a first compile: 127,755,145 bytes. */
@@ -160,6 +162,14 @@ export class EngineAssetsMissingError extends Error {
   }
 }
 
+/** Thrown when a download has the pinned size but not the pinned content. */
+export class EngineAssetHashError extends Error {
+  constructor(name: string) {
+    super(`${name} does not match its pinned SHA-256. The served assets are not the pinned release.`);
+    this.name = "EngineAssetHashError";
+  }
+}
+
 /** Thrown when a download completes but does not match the pinned size. */
 export class EngineAssetSizeError extends Error {
   constructor(name: string, expected: number, received: number) {
@@ -202,6 +212,14 @@ async function streamAsset(asset: EngineAsset, onProgress?: (progress: DownloadP
   const blob = new Blob(chunks, { type: contentTypeForAsset(asset.name) });
   if (blob.size !== asset.bytes) {
     throw new EngineAssetSizeError(asset.name, asset.bytes, blob.size);
+  }
+  if (!globalThis.crypto?.subtle) {
+    throw new Error("This browser cannot verify the TeX engine download (Web Crypto needs a secure context).");
+  }
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  if (hex !== asset.sha256) {
+    throw new EngineAssetHashError(asset.name);
   }
   return blob;
 }

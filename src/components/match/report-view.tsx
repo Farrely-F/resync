@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { tailoredForLabel } from "@/lib/resume/tailor";
+import { claimAnchor } from "@/components/suggestions/claim-experience";
 import { isDevelopment } from "@/lib/dev-only";
 import { scoreCriteria, type RubricResult } from "@/lib/match/rubric";
 import type { CriterionKind, MatchReport } from "@/lib/match/types";
@@ -144,6 +146,7 @@ export function ReportView({ id }: { id: string }) {
     );
   }
 
+  const tailoredLabel = resume !== null && jd !== null ? tailoredForLabel(resume, new Map([[jd.id, jd.title]])) : null;
   const rubric = scoreCriteria(report.criteria);
   const missing = report.criteria.filter((criterion) => criterion.verdict === "missing");
   const drifted = rubric.score !== report.score || rubric.rubricVersion !== report.rubricVersion;
@@ -184,7 +187,8 @@ export function ReportView({ id }: { id: string }) {
           <p className="text-sm text-muted-foreground">
             <Link className="underline underline-offset-4 hover:text-foreground" href={`/resumes/${resume.id}/edit`}>
               {resume.title}
-            </Link>{" "}
+            </Link>
+            {tailoredLabel === null ? null : <> · {tailoredLabel}</>}{" "}
             against{" "}
             <Link className="underline underline-offset-4 hover:text-foreground" href={`/match?jd=${jd.id}`}>
               {jd.title}
@@ -209,7 +213,13 @@ export function ReportView({ id }: { id: string }) {
                   <span className="text-xs text-muted-foreground">
                     ({kindLabels[criterion.kind]}
                     {criterion.kind === "nice-to-have" ? ", optional — not counted against the score" : ""})
-                  </span>
+                  </span>{" "}
+                  <a
+                    className="whitespace-nowrap text-xs font-medium underline underline-offset-4 hover:text-foreground"
+                    href={`#${claimAnchor(criterion.id)}`}
+                  >
+                    I have this
+                  </a>
                 </span>
               </li>
             ))}

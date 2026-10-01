@@ -12,7 +12,7 @@ import { createStorage } from "@/lib/storage";
 import type { JdRecord, ResumeRecord } from "@/lib/storage/types";
 import { readDecisions, recordDecision } from "@/lib/suggestions/decisions";
 import type { GenerationOutcome } from "@/lib/suggestions/types";
-import { acceptSuggestion, ensureTailoredCopy, generateGroundedSuggestions } from "@/lib/suggestions/service";
+import { acceptSuggestion, addAttestedExperience, ensureTailoredCopy, generateGroundedSuggestions } from "@/lib/suggestions/service";
 import { applySuggestion } from "@/lib/suggestions/apply";
 
 /**
@@ -207,6 +207,29 @@ describe("accepting and rejecting against stored records", () => {
     if (!outcome.applied) {
       expect(outcome.reason).toBe("missing-resume");
     }
+  });
+
+  it("logs the accepted change on the tailored copy and leaves the baseline without one", async () => {
+    const record = resumeRecord();
+    await storage.putResume(record);
+
+    const { suggestions } = await generated();
+    const accepted = suggestions[1];
+    const outcome = await acceptSuggestion({ resumeId: record.id, suggestion: accepted, jdId: "jd-1" }, { storage });
+
+    expect(outcome.applied).toBe(true);
+    const copy = (await storage.listResumes()).find((entry) => entry.derivedFromId === record.id);
+    expect(copy?.adjustments).toEqual([
+      {
+        id: accepted.id,
+        targetId: accepted.targetId,
+        requirement: accepted.requirement,
+        before: accepted.current,
+        after: accepted.proposed,
+        at: copy!.updatedAt,
+      },
+    ]);
+    expect((await storage.getResume(record.id))!.adjustments).toBeUndefined();
   });
 
   it("refuses to apply the same suggestion twice, so a double click cannot double-write", async () => {
@@ -487,5 +510,60 @@ describe("ensureTailoredCopy", () => {
     await storage.putResume(copy);
     const same = await ensureTailoredCopy({ resumeId: copy.id, jdId: "jd" }, { storage });
     expect(same.ok && same.record.id === copy.id && !same.created).toBe(true);
+  });
+});
+
+describe("adding experience the reader says they have", () => {
+  const statement = "Traded perpetuals on-chain with my own wallet for two years.";
+
+  it("adds the reader's line to a tailored copy, labelled as theirs, and leaves the baseline alone", async () => {
+    const record = resumeRecord();
+    await storage.putResume(record);
+    const before = JSON.stringify(await storage.getResume(record.id));
+
+    const outcome = await addAttestedExperience(
+      { resumeId: record.id, jdId: "jd-1", requirement: "On-chain trading", destinationId: "work.0.highlights", text: `  ${statement} ` },
+      { storage },
+    );
+
+    expect(outcome.added).toBe(true);
+    if (!outcome.added) {
+      return;
+    }
+
+    expect(outcome.created).toBe(true);
+    expect(outcome.record.resume.work[0]!.highlights.at(-1)).toBe(statement);
+    expect(outcome.record.adjustments).toMatchObject([{ before: "", after: statement, source: "you", requirement: "On-chain trading" }]);
+    expect(JSON.stringify(await storage.getResume(record.id))).toBe(before);
+  });
+
+  it("refuses an empty line, a repeat and a missing place, storing nothing", async () => {
+    const record = resumeRecord();
+    await storage.putResume(record);
+    const input = { resumeId: record.id, jdId: "jd-attest", requirement: "r", destinationId: "work.0.highlights" };
+
+    const empty = await addAttestedExperience({ ...input, text: "   " }, { storage });
+    const gone = await addAttestedExperience({ ...input, destinationId: "work.99.highlights", text: statement }, { storage });
+    expect(empty).toMatchObject({ added: false, reason: "empty" });
+    expect(gone).toMatchObject({ added: false, reason: "unknown-destination" });
+    expect((await storage.listResumes()).filter((entry) => entry.forJdId === "jd-attest")).toHaveLength(0);
+
+    const first = await addAttestedExperience({ ...input, text: statement }, { storage });
+    const again = await addAttestedExperience({ ...input, text: statement }, { storage });
+    expect(first.added).toBe(true);
+    expect(again).toMatchObject({ added: false, reason: "duplicate" });
+  });
+
+  it("refuses a hand-edited resume", async () => {
+    const record = resumeRecord({ mode: "manual", manualTex: "\\documentclass{article}" });
+    await storage.putResume(record);
+
+    const outcome = await addAttestedExperience(
+      { resumeId: record.id, jdId: "jd-manual", requirement: "r", destinationId: "work.0.highlights", text: statement },
+      { storage },
+    );
+
+    expect(outcome).toMatchObject({ added: false, reason: "manual-mode" });
+    expect((await storage.listResumes()).filter((entry) => entry.forJdId === "jd-manual")).toHaveLength(0);
   });
 });

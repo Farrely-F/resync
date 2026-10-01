@@ -17,6 +17,8 @@ import { LatexSourceEditor } from "@/components/latex-editor/latex-source-editor
 import { ManualModeBadge } from "@/components/latex-editor/manual-mode-badge";
 import { RegenerateConfirm } from "@/components/latex-editor/regenerate-confirm";
 import { PageLayoutControls } from "@/components/theme/page-layout-controls";
+import { AdjustmentHighlightProvider } from "@/components/editor/adjustment-highlight";
+import { useBaselineChanges } from "@/components/theme/use-baseline-changes";
 import { TailoredNotice } from "@/components/theme/tailored-notice";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { TourLauncher } from "@/components/tour/tour-launcher";
@@ -57,6 +59,7 @@ const saveCopy: Record<SaveStatus, string> = {
  */
 export function ResumeEditor({ resumeId }: { resumeId: string }) {
   const [state, setState] = useState<EditorState>({ status: "loading" });
+  const changes = useBaselineChanges(state.status === "ready" ? state.record : null);
   /** Bumped when the document is replaced rather than edited, to reset the editor's undo history. */
   const [sourceRevision, setSourceRevision] = useState(0);
   /**
@@ -399,7 +402,7 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
         </p>
       </div>
 
-      <TailoredNotice record={record} />
+      <TailoredNotice changes={changes} record={record} />
 
       {editable ? null : (
         <Alert>
@@ -506,8 +509,10 @@ export function ResumeEditor({ resumeId }: { resumeId: string }) {
             >
               <legend className="sr-only">Resume fields</legend>
               <div className="flex flex-col gap-6">
-                <BasicsEditor onChange={applyResume} resume={record.resume} />
-                <SectionsEditor onChange={applyResume} resume={record.resume} />
+                <AdjustmentHighlightProvider changes={changes}>
+                  <BasicsEditor onChange={applyResume} resume={record.resume} />
+                  <SectionsEditor onChange={applyResume} resume={record.resume} />
+                </AdjustmentHighlightProvider>
               </div>
               </fieldset>
             </TabsContent>

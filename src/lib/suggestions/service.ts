@@ -8,6 +8,7 @@ import type { Resume } from "@/lib/resume/schema";
 import { buildTailoredCopy, findTailoredCopy, isTailoredCopy } from "@/lib/resume/tailor";
 import type { ResumeRecord, StorageApi } from "@/lib/storage/types";
 import { applyRefusalMessages, applySuggestion, type ApplyResult } from "@/lib/suggestions/apply";
+import { appendToDestination } from "@/lib/suggestions/attest";
 import { buildSuggestions } from "@/lib/suggestions/assemble";
 import { suggestAdjustments, type SuggestionDraft } from "@/lib/suggestions/generate";
 import type { GenerationOutcome, Suggestion } from "@/lib/suggestions/types";
@@ -128,9 +129,26 @@ export async function acceptSuggestion(
     return outcome;
   }
 
-  await deps.storage.putResume(outcome.record);
+  const stored = isTailoredCopy(outcome.record)
+    ? {
+        ...outcome.record,
+        adjustments: [
+          ...(outcome.record.adjustments ?? []).filter((entry) => entry.id !== input.suggestion.id),
+          {
+            id: input.suggestion.id,
+            targetId: input.suggestion.targetId,
+            requirement: input.suggestion.requirement,
+            before: input.suggestion.current,
+            after: input.suggestion.proposed,
+            at: outcome.record.updatedAt,
+          },
+        ],
+      }
+    : outcome.record;
 
-  return { ...outcome, created };
+  await deps.storage.putResume(stored);
+
+  return { ...outcome, record: stored, created };
 }
 
 export type EnsureCopyResult =
@@ -172,4 +190,83 @@ export async function ensureTailoredCopy(
   await deps.storage.putResume(copy);
 
   return { ok: true, record: copy, created: true };
+}
+
+export type AttestResult =
+  | { added: true; record: ResumeRecord; created: boolean }
+  | { added: false; reason: "missing-resume" | "manual-mode" | "empty" | "duplicate" | "unknown-destination"; message: string };
+
+const attestRefusalMessages = {
+  empty: "Write the experience first; there is nothing to add yet.",
+  duplicate: "That exact line is already in the place you chose, so it was not added a second time.",
+  "unknown-destination": "The place you chose is no longer in the resume, so nothing was added.",
+} as const;
+
+/**
+ * Adds a line the reader wrote to their tailored copy.
+ *
+ * The same rules as accepting a suggestion: the baseline is never written, the copy
+ * is found or made, a hand-edited resume is refused, and a refusal stores nothing —
+ * not even an empty copy. The difference is the author. The line is the reader's own
+ * statement, so the log records it as theirs (`source: "you"`) and there is no
+ * grounding check: the reader is the ground truth.
+ */
+export async function addAttestedExperience(
+  input: { resumeId: string; jdId: string; requirement: string; destinationId: string; text: string },
+  deps: AcceptSuggestionDeps,
+): Promise<AttestResult> {
+  const record = await deps.storage.getResume(input.resumeId);
+
+  if (record === null) {
+    return { added: false, reason: "missing-resume", message: applyRefusalMessages["missing-resume"] };
+  }
+
+  let target = record;
+  let created = false;
+  const now = (deps.now ?? (() => new Date().toISOString()))();
+
+  if (!isTailoredCopy(record)) {
+    const existing = findTailoredCopy(await deps.storage.listResumes(), record.id, input.jdId);
+
+    if (existing !== null) {
+      target = existing;
+    } else if (record.mode === "manual") {
+      return { added: false, reason: "manual-mode", message: applyRefusalMessages["manual-mode"] };
+    } else {
+      target = buildTailoredCopy(record, input.jdId, (deps.newId ?? (() => crypto.randomUUID()))(), now);
+      created = true;
+    }
+  }
+
+  if (target.mode === "manual") {
+    return { added: false, reason: "manual-mode", message: applyRefusalMessages["manual-mode"] };
+  }
+
+  const appended = appendToDestination(target.resume, input.destinationId, input.text);
+  if (!appended.ok) {
+    return { added: false, reason: appended.reason, message: attestRefusalMessages[appended.reason] };
+  }
+
+  const text = input.text.trim();
+  const stored: ResumeRecord = {
+    ...target,
+    resume: appended.resume,
+    updatedAt: now,
+    adjustments: [
+      ...(target.adjustments ?? []),
+      {
+        id: `you:${(deps.newId ?? (() => crypto.randomUUID()))()}`,
+        targetId: input.destinationId,
+        requirement: input.requirement,
+        before: "",
+        after: text,
+        at: now,
+        source: "you",
+      },
+    ],
+  };
+
+  await deps.storage.putResume(stored);
+
+  return { added: true, record: stored, created };
 }

@@ -15,7 +15,7 @@ export default function MatchPage() {
         <TourLauncher />
       </div>
       <p className="max-w-2xl text-base leading-relaxed text-muted-foreground">
-        Pick a resume and a stored posting, then analyse. The model reports which requirements are met and the resume
+        Pick a resume, choose a saved posting or add a new one, then analyse. The model reports which requirements are met and the resume
         text behind each verdict; the percentage is computed from those verdicts by weights in this app.
       </p>
       <MatchWorkspace />

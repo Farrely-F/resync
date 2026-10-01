@@ -71,12 +71,12 @@ const matchTour: Tour = {
     },
     {
       target: "match-posting",
-      title: "2 and 3. The posting",
-      body: "Paste the job description, or give a URL and let the app read the page. A posting is stored, so you can match another resume against it without fetching it twice.",
+      title: "2. The job posting",
+      body: "Choose a posting you already saved, or add a new one by pasting its text or giving a link. A posting is stored, so you can match another resume against it without reading it twice.",
     },
     {
       target: "match-run",
-      title: "4. Match",
+      title: "3. Match",
       body: "The model answers one question per requirement — met, partly met, missing — and this app computes the percentage from those answers. No score is asked of the model, so the same evidence always gives the same number.",
     },
     {

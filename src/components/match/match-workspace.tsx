@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { AiFailureNotice } from "@/components/ai/failure-notice";
 import { JdSourceForm, type JdInputMode } from "@/components/jd/jd-source-form";
 import { JdSummary } from "@/components/jd/jd-summary";
+import { PostingShelf } from "@/components/match/posting-shelf";
 import { ResumePicker } from "@/components/jd/resume-picker";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { isDevelopment } from "@/lib/dev-only";
 import { toRequestFailure, type AiFailureError } from "@/lib/ai/failures";
 import { browserUsageStore, readModelRequests, recordModelRequest, type ModelRequestUsage } from "@/lib/ai/usage";
@@ -78,6 +78,8 @@ function writeJdQuery(id: string | null) {
   const url = id === null ? window.location.pathname : `${window.location.pathname}?${jdQueryKey}=${encodeURIComponent(id)}`;
   window.history.replaceState(null, "", url);
 }
+
+type PostingView = "saved" | "new";
 
 function DeleteJdConfirm({ title, busy, onCancel, onConfirm }: {
   title: string;
@@ -148,11 +150,17 @@ export function MatchWorkspace() {
   const [jds, setJds] = useState<JdRecord[] | null>(null);
   const [selectedJdId, setSelectedJdId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  /** The posting the reader asked to remove and has not yet confirmed. */
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const [identity, setIdentity] = useState<ModelIdentity | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
   const [usage, setUsage] = useState<ModelRequestUsage | null>(null);
+
+  /** Which half of the posting step is open; null until the reader chooses, then the saved list wins when there is one. */
+  const [postingView, setPostingView] = useState<PostingView | null>(null);
+  /** The title of a posting just read and saved, so the reader sees it landed and was selected. */
+  const [justAdded, setJustAdded] = useState<string | null>(null);
 
   const [mode, setMode] = useState<JdInputMode>("paste");
   const [text, setText] = useState("");
@@ -222,12 +230,14 @@ export function MatchWorkspace() {
   }, [applyJds]);
 
   const selectedJd = jds?.find((record) => record.id === selectedJdId) ?? null;
+  const pendingDelete = jds?.find((record) => record.id === pendingDeleteId) ?? null;
   const selectedResume = resumes?.find((record) => record.id === selectedResumeId) ?? null;
   const canSubmit = mode === "paste" ? text.trim().length > 0 : url.trim().length > 0;
 
   function selectJd(id: string) {
+    setJustAdded(null);
     setSelectedJdId(id);
-    setConfirmingDelete(false);
+    setPendingDeleteId(null);
     setAnalyzeError(null);
     writeJdQuery(id);
   }
@@ -275,6 +285,8 @@ export function MatchWorkspace() {
       const record = jdRecordFromIntake(payload);
       await storage.putJd(record);
       applyJds(await storage.listJds(), record.id);
+      setJustAdded(record.title);
+      setPostingView("saved");
     } catch {
       setIntakeError({
         reason: "storage",
@@ -283,18 +295,19 @@ export function MatchWorkspace() {
     }
   }
 
-  async function deleteSelectedJd() {
-    if (!selectedJd) {
+  async function deletePendingJd() {
+    if (pendingDeleteId === null) {
       return;
     }
 
     setDeleting(true);
     try {
       const storage = getStorage();
-      await storage.deleteJd(selectedJd.id);
+      await storage.deleteJd(pendingDeleteId);
       const remaining = await storage.listJds();
-      setConfirmingDelete(false);
-      applyJds(remaining, null);
+      setPendingDeleteId(null);
+      // Removing another posting must not move the selection off the one being matched.
+      applyJds(remaining, pendingDeleteId === selectedJdId ? null : selectedJdId);
     } catch {
       setIntakeError({ reason: "storage", message: "The posting could not be deleted from this browser." });
     } finally {
@@ -350,6 +363,8 @@ export function MatchWorkspace() {
   }
 
   const loading = resumes === null || jds === null;
+  // Nothing saved means there is nothing to choose from, so the form is the only sensible view.
+  const view: PostingView = jds === null || jds.length === 0 ? "new" : (postingView ?? "saved");
 
   return (
     <div className="flex flex-col gap-6">
@@ -366,116 +381,126 @@ export function MatchWorkspace() {
         />
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">2. Read a job description</h2>
-        <JdSourceForm
-          busy={busy}
-          canSubmit={canSubmit}
-          mode={mode}
-          onModeChange={(next) => {
-            setMode(next);
-            setIntakeError(null);
-          }}
-          onSubmit={runIntake}
-          onTextChange={setText}
-          onUrlChange={setUrl}
-          text={text}
-          url={url}
-        />
-      </section>
-
-      {intakeError ? (
-        <div className="flex flex-col gap-3 rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4" role="alert">
-          <p className="text-sm">{intakeError.message}</p>
-          <p className="text-xs text-muted-foreground">Reason: {intakeError.reason}</p>
-          <Button className="h-11 w-full sm:w-auto" onClick={() => setMode("paste")} size="lg" variant="outline">
-            Paste the posting text instead
-          </Button>
-        </div>
-      ) : null}
-
       <section className="flex flex-col gap-3" data-tour="match-posting">
-        <h2 className="text-sm font-semibold">3. The posting to match against</h2>
+        <h2 className="text-sm font-semibold">2. The job posting</h2>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading stored postings…</p>
-        ) : jds.length === 0 ? (
-          <p className="rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) px-4 py-6 text-sm text-muted-foreground">
-            Nothing read yet. Paste a posting or add its link above; it will be stored in this browser and shown here
-            again after a reload.
-          </p>
+          <p className="text-sm text-muted-foreground">Loading saved postings…</p>
         ) : (
           <>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="stored-jd">Stored posting</Label>
-              <Select
-                items={jds.map((record) => ({
-                  value: record.id,
-                  label: `${record.title} · ${new Date(record.updatedAt).toLocaleDateString()}`,
-                }))}
-                onValueChange={(value) => {
-                  if (typeof value === "string") {
-                    selectJd(value);
-                  }
-                }}
-                value={selectedJdId}
-              >
-                <SelectTrigger className="min-h-11 w-full" id="stored-jd">
-                  <SelectValue placeholder="Select a stored posting" />
-                </SelectTrigger>
-                <SelectContent>
-                  {jds.map((record) => (
-                    <SelectItem key={record.id} value={record.id}>
-                      {record.title} · {new Date(record.updatedAt).toLocaleDateString()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {jds.length === 1
-                  ? "The only posting stored in this browser."
-                  : `Showing the posting selected in the address bar (?jd=), out of ${jds.length} stored in this browser.`}
-              </p>
-            </div>
+            <PostingShelf
+              adding={view === "new"}
+              onAdd={() => {
+                setPostingView("new");
+                setJustAdded(null);
+                setPendingDeleteId(null);
+              }}
+              onSelect={(id) => {
+                setPostingView("saved");
+                setIntakeError(null);
+                selectJd(id);
+              }}
+              onDelete={(id) => setPendingDeleteId(id)}
+              postings={jds}
+              selectedId={selectedJdId}
+            />
 
-            {selectedJd ? (
-              <JdSummary
-                hints={viewHints(selectedJd)}
-                rawText={selectedJd.rawText}
-                source={viewSource(selectedJd)}
-                stored
-                structured={selectedJd.structured}
-                url={selectedJd.sourceUrl}
+            {pendingDelete ? (
+              <DeleteJdConfirm
+                busy={deleting}
+                onCancel={() => setPendingDeleteId(null)}
+                onConfirm={deletePendingJd}
+                title={pendingDelete.title}
               />
             ) : null}
 
-            {selectedJd ? (
-              confirmingDelete ? (
-                <DeleteJdConfirm
-                  busy={deleting}
-                  onCancel={() => setConfirmingDelete(false)}
-                  onConfirm={deleteSelectedJd}
-                  title={selectedJd.title}
-                />
-              ) : (
-                <div>
-                  <Button
-                    className="h-11 w-full sm:w-auto"
-                    onClick={() => setConfirmingDelete(true)}
-                    type="button"
-                    variant="outline"
-                  >
-                    Delete this posting
-                  </Button>
+            {view === "new" ? (
+              <div className="flex flex-col gap-3 rounded-2xl bg-card ring-1 ring-foreground/[0.07] shadow-(--shadow-rest) p-4 animate-in fade-in slide-in-from-top-2 duration-500 ease-(--ease-out-expo)">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <h3 className="text-sm font-semibold">Add a new posting</h3>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      It is read once, saved in this browser and selected for the match. Next time it is on the shelf above.
+                    </p>
+                  </div>
+                  {jds.length > 0 ? (
+                    <Button className="h-11 sm:h-9" onClick={() => setPostingView("saved")} type="button" variant="ghost">
+                      Cancel
+                    </Button>
+                  ) : null}
                 </div>
-              )
-            ) : null}
+                <JdSourceForm
+                  busy={busy}
+                  canSubmit={canSubmit}
+                  mode={mode}
+                  onModeChange={(next) => {
+                    setMode(next);
+                    setIntakeError(null);
+                  }}
+                  onSubmit={runIntake}
+                  onTextChange={setText}
+                  onUrlChange={setUrl}
+                  submitLabel="Read and save posting"
+                  text={text}
+                  url={url}
+                />
+                {intakeError ? (
+                  <div className="flex flex-col gap-3 rounded-2xl bg-[color-mix(in_oklch,var(--card),var(--destructive)_7%)] ring-1 ring-destructive/25 p-4" role="alert">
+                    <p className="text-sm">{intakeError.message}</p>
+                    <p className="text-xs text-muted-foreground">Reason: {intakeError.reason}</p>
+                    {mode === "url" ? (
+                      <Button className="h-11 w-full sm:w-auto" onClick={() => setMode("paste")} size="lg" variant="outline">
+                        Paste the posting text instead
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                {justAdded === null ? null : (
+                  <p className="rounded-xl bg-accent ring-1 ring-primary/15 p-3 text-sm leading-relaxed" role="status">
+                    Saved <span className="font-medium">{justAdded}</span> and selected it for the match.
+                  </p>
+                )}
+
+                {selectedJd && pendingDeleteId === null ? (
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <p className="min-w-0 text-xs text-muted-foreground">
+                      Matching against <span className="font-medium text-foreground">{selectedJd.title}</span>
+                    </p>
+                    <Button
+                      className="h-11 sm:h-9"
+                      onClick={() => setPendingDeleteId(selectedJd.id)}
+                      type="button"
+                      variant="destructive"
+                    >
+                      <Trash2 aria-hidden />
+                      Delete this posting
+                    </Button>
+                  </div>
+                ) : null}
+
+                {selectedJd ? (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-500 ease-(--ease-out-expo)" key={selectedJd.id}>
+                    <JdSummary
+                      hints={viewHints(selectedJd)}
+                      rawText={selectedJd.rawText}
+                      source={viewSource(selectedJd)}
+                      stored
+                      structured={selectedJd.structured}
+                      url={selectedJd.sourceUrl}
+                    />
+                  </div>
+                ) : null}
+              </>
+            )}
           </>
         )}
       </section>
 
       <section className="flex flex-col gap-3" data-tour="match-run">
-        <h2 className="text-sm font-semibold">4. Match</h2>
+        <h2 className="text-sm font-semibold">3. Match</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
           The model answers one question per requirement — met, partly met or missing, with the resume text behind it.
           The percentage is computed here from those answers by versioned weights, so the same evidence always gives

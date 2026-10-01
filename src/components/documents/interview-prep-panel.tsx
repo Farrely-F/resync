@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
-import { Check, CircleAlert, Copy, Download, Loader2, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Check, CircleAlert, Copy, Download, Loader2, MessagesSquare, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 
 import { useDocument } from "@/components/documents/use-document";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { isDevelopment } from "@/lib/dev-only";
 import { interviewPrepSpec } from "@/lib/documents/interview-prep";
 import { documentText, type DocumentRecord } from "@/lib/documents/types";
@@ -229,6 +231,13 @@ export function InterviewPrepPanel({ reportId }: { reportId: string }) {
           </ol>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              className={cn(buttonVariants({ size: "sm" }), "h-11 sm:h-9")}
+              href={`/report/${reportId}/prepare/practice`}
+            >
+              <MessagesSquare aria-hidden />
+              Practise this interview
+            </Link>
             <Button
               className="h-11 sm:h-9"
               onClick={() => void copy(document)}
